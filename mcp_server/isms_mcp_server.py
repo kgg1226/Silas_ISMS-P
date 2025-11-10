@@ -6,59 +6,36 @@ ISMS-P 증적 자동화를 위한 MCP 서버
 import asyncio
 import json
 import sqlite3
+import os
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-def init_database():
-    """ISMS-P 관련 데이터베이스 초기화"""
-    conn = sqlite3.connect('isms_p.db')
-    cursor = conn.cursor()
-    
-    # ISMS-P 인증기준 테이블
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS isms_requirements (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        chapter TEXT NOT NULL,
-        section TEXT NOT NULL,
-        item_code TEXT UNIQUE NOT NULL,
-        item_title TEXT NOT NULL,
-        certification_criteria TEXT,
-        key_checks TEXT,
-        detailed_explanation TEXT,
-        evidence_examples TEXT,
-        defect_cases TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    # 증적 로그 테이블
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS evidence_logs (
-        id INTEGER PRIMARY KEY,
-        item_code TEXT NOT NULL,
-        evidence_type TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_by TEXT
-    )
-    ''')
-    
-    conn.commit()
-    conn.close()
+# 환경변수에서 DB 경로 가져오기
+DB_PATH = os.getenv('DB_PATH', 'data/isms_p.db')
 
-# MCP 서버 생성
-app = Server("isms-p-evidence-automation")
+# MCP 서버 인스턴스
+server = Server("isms-p")
 
-@app.list_tools()
+def get_db_connection():
+    """데이터베이스 연결"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception as e:
+        print(f"Database connection error: {e}")
+        raise
+
+@server.list_tools()
 async def list_tools() -> list[Tool]:
-    """사용 가능한 도구 목록 반환"""
+    """사용 가능한 도구 목록"""
     return [
         Tool(
             name="search_requirements",
-            description="ISMS-P 인증기준 항목을 검색합니다. 키워드로 관련 항목을 찾을 수 있습니다.",
+            description="ISMS-P 인증기준 항목을 키워드로 검색합니다. 예: '접근권한', '로그', '암호화'",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -72,7 +49,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_requirement_detail",
-            description="특정 ISMS-P 인증기준 항목의 상세 정보를 조회합니다.",
+            description="특정 ISMS-P 인증기준 항목의 상세 정보를 조회합니다. 예: '1.1.1', '2.3.1'",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -138,144 +115,315 @@ async def list_tools() -> list[Tool]:
         )
     ]
 
-@app.call_tool()
+@server.call_tool()
 async def call_tool(name: str, arguments: Any) -> list[TextContent]:
     """도구 실행"""
     
-    conn = sqlite3.connect('isms_p.db')
-    cursor = conn.cursor()
-    
     try:
         if name == "search_requirements":
-            keyword = arguments.get("keyword", "")
-            cursor.execute('''
-                SELECT item_code, item_title, certification_criteria
-                FROM isms_requirements
-                WHERE item_title LIKE ? OR certification_criteria LIKE ?
-            ''', (f'%{keyword}%', f'%{keyword}%'))
-            
-            results = cursor.fetchall()
-            if results:
-                output = f"'{keyword}' 검색 결과 ({len(results)}건):\n\n"
-                for item in results:
-                    output += f"[{item[0]}] {item[1]}\n"
-                    output += f"설명: {item[2][:100]}...\n\n"
-            else:
-                output = f"'{keyword}'에 대한 검색 결과가 없습니다."
-            
-            return [TextContent(type="text", text=output)]
+            return await search_requirements(arguments.get("keyword", ""))
         
         elif name == "get_requirement_detail":
-            item_code = arguments.get("item_code")
-            cursor.execute('''
-                SELECT * FROM isms_requirements WHERE item_code = ?
-            ''', (item_code,))
-            
-            result = cursor.fetchone()
-            if result:
-                output = f"=== ISMS-P 인증기준 상세 정보 ===\n\n"
-                output += f"항목코드: {result[3]}\n"
-                output += f"제목: {result[4]}\n"
-                output += f"인증기준: {result[5]}\n"
-            else:
-                output = f"항목코드 '{item_code}'를 찾을 수 없습니다."
-            
-            return [TextContent(type="text", text=output)]
+            return await get_requirement_detail(arguments.get("item_code", ""))
         
         elif name == "generate_evidence":
-            item_code = arguments.get("item_code")
-            evidence_type = arguments.get("evidence_type")
-            content = arguments.get("content")
-            
-            cursor.execute('SELECT item_title FROM isms_requirements WHERE item_code = ?', (item_code,))
-            requirement = cursor.fetchone()
-            
-            if not requirement:
-                return [TextContent(type="text", text=f"항목코드 '{item_code}'를 찾을 수 없습니다.")]
-            
-            cursor.execute('''
-                INSERT INTO evidence_logs (item_code, evidence_type, content, created_by)
-                VALUES (?, ?, ?, ?)
-            ''', (item_code, evidence_type, content, 'system'))
-            
-            conn.commit()
-            
-            output = f"증적이 성공적으로 생성되었습니다.\n\n"
-            output += f"항목: [{item_code}] {requirement[0]}\n"
-            output += f"증적유형: {evidence_type}\n"
-            output += f"생성시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            
-            return [TextContent(type="text", text=output)]
+            return await generate_evidence(
+                arguments.get("item_code", ""),
+                arguments.get("evidence_type", ""),
+                arguments.get("content", "")
+            )
         
         elif name == "check_compliance":
-            cursor.execute('SELECT item_code, item_title FROM isms_requirements')
-            requirements = cursor.fetchall()
-            
-            output = "=== 컴플라이언스 준수 현황 ===\n\n"
-            total = len(requirements)
-            compliant = 0
-            
-            for req in requirements:
-                cursor.execute('''
-                    SELECT COUNT(*) FROM evidence_logs WHERE item_code = ?
-                ''', (req[0],))
-                
-                evidence_count = cursor.fetchone()[0]
-                status = "✓ 준수" if evidence_count > 0 else "✗ 미준수"
-                
-                if evidence_count > 0:
-                    compliant += 1
-                
-                output += f"{status} [{req[0]}] {req[1]} (증적 {evidence_count}건)\n"
-            
-            compliance_rate = (compliant / total * 100) if total > 0 else 0
-            output += f"\n준수율: {compliant}/{total} ({compliance_rate:.1f}%)"
-            
-            return [TextContent(type="text", text=output)]
+            return await check_compliance(arguments.get("category"))
         
         elif name == "create_audit_report":
-            start_date = arguments.get("start_date", "2024-01-01")
-            end_date = arguments.get("end_date", datetime.now().strftime('%Y-%m-%d'))
-            
-            cursor.execute('''
-                SELECT e.item_code, r.item_title, e.evidence_type, e.created_at
-                FROM evidence_logs e
-                JOIN isms_requirements r ON e.item_code = r.item_code
-                WHERE DATE(e.created_at) BETWEEN ? AND ?
-                ORDER BY e.created_at DESC
-            ''', (start_date, end_date))
-            
-            logs = cursor.fetchall()
-            
-            output = f"=== ISMS-P 증적 현황 보고서 ===\n"
-            output += f"기간: {start_date} ~ {end_date}\n\n"
-            output += f"총 증적 건수: {len(logs)}건\n\n"
-            
-            if logs:
-                output += "최근 증적 이력:\n"
-                for log in logs[:10]:
-                    output += f"- [{log[0]}] {log[1]} | {log[2]} | {log[3]}\n"
-            else:
-                output += "해당 기간 내 증적이 없습니다.\n"
-            
-            return [TextContent(type="text", text=output)]
+            return await create_audit_report(
+                arguments.get("start_date"),
+                arguments.get("end_date")
+            )
         
         else:
-            return [TextContent(type="text", text=f"알 수 없는 도구: {name}")]
+            return [TextContent(
+                type="text",
+                text=f"Unknown tool: {name}"
+            )]
     
-    finally:
+    except Exception as e:
+        return [TextContent(
+            type="text",
+            text=f"Error executing {name}: {str(e)}"
+        )]
+
+async def search_requirements(keyword: str) -> list[TextContent]:
+    """ISMS-P 요구사항 검색"""
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 키워드로 검색
+    query = """
+        SELECT item_code, category, title, description, requirement
+        FROM isms_requirements
+        WHERE title LIKE ? OR description LIKE ? OR requirement LIKE ? OR category LIKE ?
+        ORDER BY item_code
+    """
+    
+    search_term = f"%{keyword}%"
+    cursor.execute(query, (search_term, search_term, search_term, search_term))
+    
+    results = cursor.fetchall()
+    conn.close()
+    
+    if not results:
+        return [TextContent(
+            type="text",
+            text=f"'{keyword}' 키워드와 관련된 ISMS-P 요구사항을 찾을 수 없습니다."
+        )]
+    
+    # 결과 포맷팅
+    output = f"🔍 '{keyword}' 검색 결과: {len(results)}개 항목\n\n"
+    
+    for row in results:
+        output += f"**[{row['item_code']}] {row['title']}**\n"
+        output += f"📁 카테고리: {row['category']}\n"
+        output += f"📝 설명: {row['description']}\n"
+        if row['requirement']:
+            output += f"📋 요구사항: {row['requirement']}\n"
+        output += "\n" + "-" * 60 + "\n\n"
+    
+    return [TextContent(type="text", text=output)]
+
+async def get_requirement_detail(item_code: str) -> list[TextContent]:
+    """특정 ISMS-P 요구사항 상세 조회"""
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT * FROM isms_requirements WHERE item_code = ?
+    """, (item_code,))
+    
+    row = cursor.fetchone()
+    
+    if not row:
         conn.close()
+        return [TextContent(
+            type="text",
+            text=f"❌ 항목 코드 '{item_code}'를 찾을 수 없습니다."
+        )]
+    
+    # 관련 증적 조회
+    cursor.execute("""
+        SELECT evidence_type, content, created_at
+        FROM evidences
+        WHERE item_code = ?
+        ORDER BY created_at DESC
+    """, (item_code,))
+    
+    evidences = cursor.fetchall()
+    conn.close()
+    
+    # 결과 포맷팅
+    output = f"📋 **ISMS-P 요구사항 상세정보**\n\n"
+    output += f"**항목 코드:** {row['item_code']}\n"
+    output += f"**카테고리:** {row['category']}\n"
+    output += f"**제목:** {row['title']}\n\n"
+    output += f"**설명:**\n{row['description']}\n\n"
+    
+    if row['requirement']:
+        output += f"**요구사항:**\n{row['requirement']}\n\n"
+    
+    if row['control_objective']:
+        output += f"**통제목표:**\n{row['control_objective']}\n\n"
+    
+    # 증적 정보
+    if evidences:
+        output += f"**📎 증적 현황:** {len(evidences)}건\n\n"
+        for i, ev in enumerate(evidences[:5], 1):  # 최근 5개만
+            output += f"{i}. [{ev['evidence_type']}] {ev['content'][:100]}...\n"
+            output += f"   생성일: {ev['created_at']}\n"
+    else:
+        output += "**📎 증적 현황:** 등록된 증적이 없습니다.\n"
+    
+    return [TextContent(type="text", text=output)]
+
+async def generate_evidence(item_code: str, evidence_type: str, content: str) -> list[TextContent]:
+    """증적 생성"""
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 항목 존재 확인
+    cursor.execute("SELECT title FROM isms_requirements WHERE item_code = ?", (item_code,))
+    req = cursor.fetchone()
+    
+    if not req:
+        conn.close()
+        return [TextContent(
+            type="text",
+            text=f"❌ 항목 코드 '{item_code}'를 찾을 수 없습니다."
+        )]
+    
+    # 증적 저장
+    cursor.execute("""
+        INSERT INTO evidences (item_code, evidence_type, content, status)
+        VALUES (?, ?, ?, 'completed')
+    """, (item_code, evidence_type, content))
+    
+    conn.commit()
+    evidence_id = cursor.lastrowid
+    conn.close()
+    
+    output = f"✅ 증적이 성공적으로 생성되었습니다!\n\n"
+    output += f"**증적 ID:** {evidence_id}\n"
+    output += f"**항목:** [{item_code}] {req['title']}\n"
+    output += f"**유형:** {evidence_type}\n"
+    output += f"**내용:** {content[:200]}...\n"
+    output += f"**생성일시:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    
+    return [TextContent(type="text", text=output)]
+
+async def check_compliance(category: Optional[str] = None) -> list[TextContent]:
+    """컴플라이언스 점검"""
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 전체 요구사항 수
+    if category:
+        cursor.execute("SELECT COUNT(*) FROM isms_requirements WHERE category = ?", (category,))
+    else:
+        cursor.execute("SELECT COUNT(*) FROM isms_requirements")
+    
+    total_requirements = cursor.fetchone()[0]
+    
+    # 증적이 있는 요구사항 수
+    if category:
+        cursor.execute("""
+            SELECT COUNT(DISTINCT r.item_code)
+            FROM isms_requirements r
+            JOIN evidences e ON r.item_code = e.item_code
+            WHERE r.category = ?
+        """, (category,))
+    else:
+        cursor.execute("""
+            SELECT COUNT(DISTINCT item_code)
+            FROM evidences
+        """)
+    
+    with_evidence = cursor.fetchone()[0]
+    
+    # 카테고리별 현황
+    cursor.execute("""
+        SELECT r.category, COUNT(DISTINCT r.item_code) as total,
+               COUNT(DISTINCT e.item_code) as completed
+        FROM isms_requirements r
+        LEFT JOIN evidences e ON r.item_code = e.item_code
+        GROUP BY r.category
+        ORDER BY r.category
+    """)
+    
+    category_stats = cursor.fetchall()
+    conn.close()
+    
+    # 결과 포맷팅
+    compliance_rate = (with_evidence / total_requirements * 100) if total_requirements > 0 else 0
+    
+    output = f"📊 **ISMS-P 컴플라이언스 현황**\n\n"
+    
+    if category:
+        output += f"**카테고리:** {category}\n\n"
+    
+    output += f"**전체 요구사항:** {total_requirements}개\n"
+    output += f"**증적 확보:** {with_evidence}개\n"
+    output += f"**미비:** {total_requirements - with_evidence}개\n"
+    output += f"**준수율:** {compliance_rate:.1f}%\n\n"
+    
+    output += "**📁 카테고리별 현황:**\n\n"
+    for cat in category_stats:
+        cat_rate = (cat['completed'] / cat['total'] * 100) if cat['total'] > 0 else 0
+        status = "✅" if cat_rate >= 80 else "⚠️" if cat_rate >= 50 else "❌"
+        output += f"{status} {cat['category']}: {cat['completed']}/{cat['total']} ({cat_rate:.0f}%)\n"
+    
+    return [TextContent(type="text", text=output)]
+
+async def create_audit_report(start_date: Optional[str] = None, end_date: Optional[str] = None) -> list[TextContent]:
+    """감사 보고서 생성"""
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 기간 설정
+    if not end_date:
+        end_date = datetime.now().strftime('%Y-%m-%d')
+    if not start_date:
+        start_date = '2020-01-01'
+    
+    # 전체 통계
+    cursor.execute("SELECT COUNT(*) FROM isms_requirements")
+    total_req = cursor.fetchone()[0]
+    
+    cursor.execute("""
+        SELECT COUNT(DISTINCT item_code) FROM evidences
+        WHERE DATE(created_at) BETWEEN ? AND ?
+    """, (start_date, end_date))
+    completed = cursor.fetchone()[0]
+    
+    cursor.execute("""
+        SELECT COUNT(*) FROM evidences
+        WHERE DATE(created_at) BETWEEN ? AND ?
+    """, (start_date, end_date))
+    total_evidences = cursor.fetchone()[0]
+    
+    # 카테고리별 통계
+    cursor.execute("""
+        SELECT r.category, COUNT(DISTINCT e.item_code) as count
+        FROM isms_requirements r
+        LEFT JOIN evidences e ON r.item_code = e.item_code
+        WHERE DATE(e.created_at) BETWEEN ? AND ?
+        GROUP BY r.category
+    """, (start_date, end_date))
+    
+    category_report = cursor.fetchall()
+    conn.close()
+    
+    # 보고서 생성
+    output = f"📄 **ISMS-P 감사 보고서**\n\n"
+    output += f"**기간:** {start_date} ~ {end_date}\n"
+    output += f"**생성일시:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    output += "=" * 60 + "\n\n"
+    
+    output += f"**📊 전체 현황**\n\n"
+    output += f"- 전체 요구사항: {total_req}개\n"
+    output += f"- 증적 확보 항목: {completed}개\n"
+    output += f"- 미비 항목: {total_req - completed}개\n"
+    output += f"- 총 증적 수: {total_evidences}건\n"
+    output += f"- 준수율: {(completed/total_req*100):.1f}%\n\n"
+    
+    output += "**📁 카테고리별 현황**\n\n"
+    for cat in category_report:
+        output += f"- {cat['category']}: {cat['count']}개 항목 완료\n"
+    
+    output += "\n" + "=" * 60 + "\n\n"
+    output += "**💡 권장사항**\n\n"
+    
+    if completed < total_req * 0.5:
+        output += "⚠️ 증적 확보율이 50% 미만입니다. 증적 수집을 강화해야 합니다.\n"
+    elif completed < total_req * 0.8:
+        output += "📌 증적 확보율이 양호합니다. 미비 항목에 대한 보완이 필요합니다.\n"
+    else:
+        output += "✅ 증적 확보율이 우수합니다. 지속적인 관리가 필요합니다.\n"
+    
+    return [TextContent(type="text", text=output)]
 
 async def main():
-    """MCP 서버 시작"""
-    init_database()
-    
+    """MCP 서버 실행"""
     async with stdio_server() as (read_stream, write_stream):
-        await app.run(
+        await server.run(
             read_stream,
             write_stream,
-            app.create_initialization_options()
+            server.create_initialization_options()
         )
 
 if __name__ == "__main__":
-    asyncio.run(main()
+    asyncio.run(main())
