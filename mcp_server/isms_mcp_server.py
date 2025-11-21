@@ -298,7 +298,8 @@ async def tool_get_requirement_detail(item_code: str) -> list[TextContent]:
         out.write("**설명:**\n" + r["description"] + "\n\n")
     if r["requirement"]:
         out.write("**요구사항:**\n" + r["requirement"] + "\n\n")
-    if r.get("control_objective"):
+    # sqlite3.Row는 .get()을 지원하지 않으므로 키 존재 여부 확인
+    if "control_objective" in r.keys() and r["control_objective"]:
         out.write("**통제목표:**\n" + str(r["control_objective"]) + "\n\n")
 
     if ev:
