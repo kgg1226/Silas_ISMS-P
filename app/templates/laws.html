@@ -1,15 +1,27 @@
 {% extends "base.html" %}
 {% block title %}법령 최신화 관리{% endblock %}
+
+{% block flash %}
+{% if flash %}
+<div class="alert alert-{{ flash_level }}" id="flash-msg">
+    {% if flash_level == 'success' %}&#10003;{% elif flash_level == 'warning' %}&#9888;{% elif flash_level == 'error' %}&#10007;{% else %}&#8505;{% endif %}
+    {{ flash }}
+</div>
+<script>setTimeout(function(){var el=document.getElementById('flash-msg');if(el)el.style.display='none';},8000);</script>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
     <h1 style="font-size: 1.5rem;">법령 최신화 관리</h1>
-    <form method="post" action="/laws/sync" style="display:inline;">
-        <button type="submit" class="btn" onclick="this.disabled=true;this.textContent='동기화 중...';">
+    <form method="post" action="/laws/sync" style="display:inline;" id="sync-form">
+        <button type="submit" class="btn" id="sync-btn">
             동기화 실행
         </button>
     </form>
 </div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 
 <!-- 통계 카드 -->
 <div class="stat-row">
@@ -262,5 +274,22 @@
     </div>
 </div>
 {% endif %}
+
+<script>
+document.getElementById('sync-form').addEventListener('submit', function(){
+    var btn = document.getElementById('sync-btn');
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:6px;"></span>동기화 중...';
+});
+document.querySelectorAll('form[action="/laws/isms-check"]').forEach(function(f){
+    f.addEventListener('submit', function(){
+        var btn = f.querySelector('button');
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-top-color:currentColor;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:4px;"></span>확인 중...';
+    });
+});
+</script>
 
 {% endblock %}

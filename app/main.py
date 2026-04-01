@@ -302,7 +302,11 @@ async def add_evidence(
 # 법령 관리 Routes
 # ---------------------------------------------------------------------------
 @app.get("/laws", response_class=HTMLResponse)
-async def law_management(request: Request):
+async def law_management(
+    request: Request,
+    flash: str = Query(default=""),
+    flash_level: str = Query(default="info"),
+):
     """법령 최신화 관리 페이지."""
     from app.law_sync import get_law_status_summary, get_sync_logs, ensure_law_tables
     from app.isms_sync import get_isms_sync_status, get_isms_sync_logs
@@ -333,36 +337,88 @@ async def law_management(request: Request):
         "logs": logs,
         "isms_sync": isms_sync,
         "isms_logs": isms_logs,
+        "flash": flash,
+        "flash_level": flash_level if flash_level in ("success", "warning", "error", "info") else "info",
     })
 
 
 @app.post("/laws/sync", response_class=HTMLResponse)
 async def trigger_law_sync(request: Request):
     """수동 법령 동기화 트리거."""
-    from app.law_sync import sync_all_laws, init_tracked_laws
+    import urllib.parse
 
-    init_tracked_laws()
-    results = sync_all_laws()
+    try:
+        from app.law_sync import sync_all_laws, init_tracked_laws
 
-    changed = sum(1 for r in results if r["changed"])
-    errors = sum(1 for r in results if r["status"] == "error")
+        init_tracked_laws()
+        results = sync_all_laws()
 
-    return RedirectResponse("/laws", status_code=303)
+        total = len(results)
+        changed = sum(1 for r in results if r["changed"])
+        errors = sum(1 for r in results if r["status"] == "error")
+
+        if errors == total:
+            # 모두 실패 (API 키 미설정 등)
+            first_error = next((r["message"] for r in results if r["status"] == "error"), "")
+            msg = f"동기화 실패: {first_error}"
+            level = "error"
+        elif changed > 0:
+            msg = f"동기화 완료: {total}건 중 {changed}건 변경 감지, {errors}건 오류"
+            level = "warning"
+        else:
+            msg = f"동기화 완료: {total}건 확인, 변경 없음"
+            if errors > 0:
+                msg += f" ({errors}건 오류)"
+            level = "success"
+
+        params = urllib.parse.urlencode({"flash": msg, "flash_level": level})
+        return RedirectResponse(f"/laws?{params}", status_code=303)
+
+    except Exception as e:
+        msg = f"동기화 실행 중 오류: {e}"
+        params = urllib.parse.urlencode({"flash": msg, "flash_level": "error"})
+        return RedirectResponse(f"/laws?{params}", status_code=303)
 
 
 @app.post("/laws/isms-check", response_class=HTMLResponse)
 async def trigger_isms_check(request: Request):
     """ISMS-P 인증기준 버전 확인 + 참조 소스 변경 감지."""
-    from app.isms_sync import check_kisa_version, detect_changes_from_reference, REFERENCE_SOURCES
+    import urllib.parse
 
-    # KISA 공식 버전 확인
-    check_kisa_version()
+    try:
+        from app.isms_sync import check_kisa_version, detect_changes_from_reference, REFERENCE_SOURCES
 
-    # 비공식 참조 소스 변경 감지
-    for source in REFERENCE_SOURCES:
-        detect_changes_from_reference(source["name"])
+        # KISA 공식 버전 확인
+        version_result = check_kisa_version()
 
-    return RedirectResponse("/laws", status_code=303)
+        # 비공식 참조 소스 변경 감지
+        changes = []
+        for source in REFERENCE_SOURCES:
+            r = detect_changes_from_reference(source["name"])
+            if r.get("changed"):
+                changes.append(source["name"])
+
+        if version_result.get("error"):
+            msg = f"KISA 버전 확인 실패: {version_result['error']}"
+            level = "warning"
+        elif version_result.get("update_available"):
+            msg = f"새 인증기준 버전 감지: {version_result['latest_detected']} (현재: {version_result['current']})"
+            level = "warning"
+        else:
+            msg = f"인증기준 확인 완료: 현재 버전({version_result['current']}) 최신"
+            level = "success"
+
+        if changes:
+            msg += f" | 비공식 소스 변경 감지: {', '.join(changes)}"
+            level = "warning"
+
+        params = urllib.parse.urlencode({"flash": msg, "flash_level": level})
+        return RedirectResponse(f"/laws?{params}", status_code=303)
+
+    except Exception as e:
+        msg = f"인증기준 확인 중 오류: {e}"
+        params = urllib.parse.urlencode({"flash": msg, "flash_level": "error"})
+        return RedirectResponse(f"/laws?{params}", status_code=303)
 
 
 @app.get("/laws/{law_name}/items", response_class=HTMLResponse)

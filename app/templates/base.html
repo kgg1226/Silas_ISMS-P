@@ -163,6 +163,19 @@
         }
         .form-group textarea { min-height: 100px; resize: vertical; }
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+        .alert {
+            padding: 0.85rem 1.25rem;
+            border-radius: 8px;
+            margin-bottom: 1.25rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .alert-success { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
+        .alert-warning { background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.3); color: var(--yellow); }
+        .alert-error { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
+        .alert-info { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: var(--accent-light); }
         .back-link { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; }
         .back-link:hover { color: var(--accent-light); }
         .section-title { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.25rem; }
@@ -189,6 +202,7 @@
         <a href="/laws" class="nav-link" style="color:var(--text-dim);text-decoration:none;font-size:0.9rem;">법령 관리</a>
     </nav>
     <div class="container">
+        {% block flash %}{% endblock %}
         {% block content %}{% endblock %}
     </div>
 </body>
