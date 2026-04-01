@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}[{{ r.item_code }}] {{ r.item_title }}{% endblock %}
+{% block content %}
+
+<a href="/" class="back-link">← 목록으로</a>
+
+<h1 style="margin: 1rem 0 0.25rem;">
+    <span class="item-code">[{{ r.item_code }}]</span> {{ r.item_title }}
+</h1>
+<p class="section-title" style="margin-bottom: 1.5rem;">{{ r.section }} {{ r.section_title }}</p>
+
+<!-- 인증기준 -->
+<div class="card">
+    <h3>인증기준</h3>
+    <p>{{ r.certification_criteria }}</p>
+</div>
+
+<!-- 주요 확인사항 -->
+{% if key_checks %}
+<div class="card">
+    <h3>주요 확인사항</h3>
+    <ul>
+    {% for c in key_checks %}
+        <li>{{ c }}</li>
+    {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- 세부 설명 -->
+{% if explanations %}
+<div class="card">
+    <h3>세부 설명</h3>
+    <ul>
+    {% for e in explanations %}
+        <li>{{ e }}</li>
+    {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+    <!-- 필요 증적 -->
+    {% if evidence_examples %}
+    <div class="card">
+        <h3>필요 증적 (가이드)</h3>
+        <ul>
+        {% for ex in evidence_examples %}
+            <li>{{ ex }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- 관련 법령 -->
+    {% if related_laws %}
+    <div class="card">
+        <h3>
+            관련 법령
+            <a href="/laws" style="font-size:0.75rem; color:var(--text-dim); text-decoration:none; margin-left:0.5rem;">
+                최신화 관리 &rarr;
+            </a>
+        </h3>
+        <ul>
+        {% for law in related_laws %}
+            <li>{{ law }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 결함 사례 -->
+{% if defect_cases %}
+<div class="card" style="border-color: rgba(239,68,68,0.3);">
+    <h3 style="color: var(--red);">결함 사례 (주의)</h3>
+    <ul>
+    {% for d in defect_cases %}
+        <li style="color: var(--text);">{{ d }}</li>
+    {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- 충족유형 + 매핑된 문서 (심사관 뷰) -->
+<div class="card" style="border-color: rgba(59,130,246,0.3);">
+    <h3 style="color: var(--blue, #3b82f6);">
+        매핑된 문서
+        {% if fulfillment_type %}
+            <span class="badge" style="font-size: 0.7rem; margin-left: 0.5rem; padding: 0.15rem 0.5rem; border-radius: 4px;
+                {% if fulfillment_type.fulfillment_type == 'document' %}
+                    background: rgba(34,197,94,0.15); color: var(--green, #22c55e);
+                {% elif fulfillment_type.fulfillment_type == 'system' %}
+                    background: rgba(168,85,247,0.15); color: #a855f7;
+                {% else %}
+                    background: rgba(234,179,8,0.15); color: var(--yellow, #eab308);
+                {% endif %}
+            ">{{ fulfillment_type.fulfillment_type }}</span>
+        {% endif %}
+        <a href="/mappings?item_code={{ r.item_code }}" style="font-size:0.75rem; color:var(--text-dim); text-decoration:none; margin-left:0.5rem;">
+            매핑 관리 &rarr;
+        </a>
+    </h3>
+
+    {% if mapped_docs %}
+    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        {% for doc in mapped_docs %}
+        <div style="padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border, rgba(255,255,255,0.1));
+                    background: rgba(255,255,255,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <a href="/documents/{{ doc.document_id }}" style="color: var(--blue, #3b82f6); text-decoration: none; font-weight: 600;">
+                    {{ doc.doc_title }}
+                    <span style="font-size: 0.8rem; color: var(--text-dim);">v{{ doc.doc_version }}</span>
+                </a>
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    {% if doc.verified %}
+                        <span style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: rgba(34,197,94,0.15); color: var(--green, #22c55e);">검증됨</span>
+                    {% else %}
+                        <span style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: rgba(234,179,8,0.15); color: var(--yellow, #eab308);">미검증</span>
+                    {% endif %}
+                    <span style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px;
+                        {% if doc.coverage_level == 'full' %}
+                            background: rgba(34,197,94,0.15); color: var(--green, #22c55e);
+                        {% elif doc.coverage_level == 'partial' %}
+                            background: rgba(234,179,8,0.15); color: var(--yellow, #eab308);
+                        {% else %}
+                            background: rgba(156,163,175,0.15); color: #9ca3af;
+                        {% endif %}
+                    ">{{ doc.coverage_level }}</span>
+                </div>
+            </div>
+
+            <div style="font-size: 0.85rem; color: var(--text-dim);">
+                {% if doc.section_number %}
+                    <span>{{ doc.section_number }}{% if doc.sec_title %} {{ doc.sec_title }}{% endif %}</span>
+                    {% if doc.page_start %}
+                        <span style="margin-left: 0.5rem;">(p.{{ doc.page_start }}{% if doc.page_end and doc.page_end != doc.page_start %}-{{ doc.page_end }}{% endif %})</span>
+                    {% endif %}
+                    <span style="margin-left: 0.5rem;">|</span>
+                {% endif %}
+                <span style="margin-left: 0.3rem;">{{ doc.doc_type }}</span>
+                <span style="margin-left: 0.5rem;">|</span>
+                <span style="margin-left: 0.3rem;">신뢰도 {{ (doc.confidence_score * 100)|int }}%</span>
+                {% if doc.doc_status == 'expired' %}
+                    <span style="margin-left: 0.5rem; color: var(--red, #ef4444);">만료됨</span>
+                {% elif doc.expiry_date %}
+                    <span style="margin-left: 0.5rem; color: var(--text-dim);">만료: {{ doc.expiry_date }}</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: var(--text-dim);">매핑된 문서가 없습니다. <a href="/mappings/create?item_code={{ r.item_code }}" style="color: var(--blue, #3b82f6);">매핑 추가</a></p>
+    {% endif %}
+</div>
+
+<!-- 등록된 증적 -->
+<div class="card">
+    <h3>등록된 증적 ({{ evidences|length }}건)</h3>
+    {% if evidences %}
+    <div class="evidence-list">
+        {% for ev in evidences %}
+        <div class="evidence-item">
+            <strong>{{ ev.evidence_type }}</strong>
+            <p style="margin-top:0.3rem;">{{ ev.content[:300] }}{% if ev.content|length > 300 %}…{% endif %}</p>
+            <div class="meta">{{ ev.created_at }} · {{ ev.status or "completed" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: var(--text-dim);">등록된 증적이 없습니다.</p>
+    {% endif %}
+</div>
+
+<!-- 증적 등록 폼 -->
+<div class="card">
+    <h3>증적 등록</h3>
+    <form method="post" action="/item/{{ r.item_code }}/evidence">
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+            <div class="form-group">
+                <label>증적 유형</label>
+                <select name="evidence_type">
+                    <option value="정책서">정책서</option>
+                    <option value="지침서">지침서</option>
+                    <option value="절차서">절차서</option>
+                    <option value="계획서">계획서</option>
+                    <option value="보고서">보고서</option>
+                    <option value="회의록">회의록</option>
+                    <option value="승인문서">승인문서</option>
+                    <option value="로그">로그</option>
+                    <option value="스크린샷">스크린샷</option>
+                    <option value="기타">기타</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>증적 내용</label>
+                <textarea name="content" placeholder="증적 내용을 입력하세요..." required></textarea>
+            </div>
+        </div>
+        <button type="submit" class="btn" style="margin-top: 0.5rem;">등록</button>
+    </form>
+</div>
+
+{% endblock %}

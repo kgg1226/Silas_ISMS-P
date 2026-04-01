@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}매핑 생성 — ISMS-P{% endblock %}
+{% block content %}
+
+<a href="/mappings" class="back-link">&larr; 매핑 목록</a>
+<h1 style="font-size:1.5rem;margin:1rem 0;">매핑 생성</h1>
+
+{% if error %}
+<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.5rem;">
+    <strong style="color:var(--red);">오류</strong>
+    <p style="color:var(--text-dim);font-size:0.9rem;margin-top:0.25rem;">{{ error }}</p>
+</div>
+{% endif %}
+
+<form method="post" action="/mappings/create">
+    <div class="card">
+        <h3>매핑 정보</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label>문서 선택 *</label>
+                <select name="document_id" required id="doc-select"
+                        onchange="location.href='/mappings/create?document_id='+this.value+'&item_code={{ selected_item_code }}'">
+                    <option value="">문서 선택...</option>
+                    {% for d in documents %}
+                    <option value="{{ d.id }}" {% if d.id == selected_doc_id %}selected{% endif %}>
+                        {{ d.title }} ({{ d.doc_type }} v{{ d.version }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>통제항목 *</label>
+                <select name="item_code" required>
+                    <option value="">항목 선택...</option>
+                    {% for item in items %}
+                    <option value="{{ item.item_code }}" {% if item.item_code == selected_item_code %}selected{% endif %}>
+                        {{ item.item_code }} {{ item.item_title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        {% if sections %}
+        <div class="form-group">
+            <label>문서 조항 (선택)</label>
+            <select name="section_id">
+                <option value="0">전체 문서</option>
+                {% for sec in sections %}
+                <option value="{{ sec.id }}">
+                    {{ '&nbsp;&nbsp;' * sec.depth | safe }}{{ sec.section_number }}
+                    {% if sec.section_title %} {{ sec.section_title }}{% endif %}
+                    {% if sec.page_start %} (p.{{ sec.page_start }}){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.25rem;">
+                특정 조항을 선택하면 더 정밀한 매핑이 됩니다.
+            </div>
+        </div>
+        {% else %}
+        <input type="hidden" name="section_id" value="0">
+        {% if selected_doc_id %}
+        <p style="font-size:0.85rem;color:var(--text-dim);">
+            이 문서는 아직 파싱되지 않았습니다. 전체 문서로 매핑됩니다.
+        </p>
+        {% endif %}
+        {% endif %}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label>충족 수준</label>
+                <select name="coverage_level">
+                    <option value="full">전체 충족</option>
+                    <option value="partial" selected>부분 충족</option>
+                    <option value="reference">참조</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>비고</label>
+            <textarea name="notes" placeholder="매핑 사유나 참고 사항..."></textarea>
+        </div>
+    </div>
+
+    <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+        <button type="submit" class="btn">매핑 생성</button>
+        <a href="/mappings" class="btn btn-outline">취소</a>
+    </div>
+</form>
+
+{% endblock %}

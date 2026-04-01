@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}문서 업로드 — ISMS-P{% endblock %}
+{% block content %}
+
+<a href="/documents" class="back-link">&larr; 문서 목록</a>
+<h1 style="font-size:1.5rem;margin:1rem 0;">문서 업로드</h1>
+
+{% if error %}
+<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.5rem;">
+    <strong style="color:var(--red);">오류</strong>
+    <p style="color:var(--text-dim);font-size:0.9rem;margin-top:0.25rem;">{{ error }}</p>
+</div>
+{% endif %}
+
+<form method="post" action="/documents/upload" enctype="multipart/form-data">
+    <div class="card">
+        <h3>기본 정보</h3>
+
+        <div class="form-group">
+            <label>파일 선택 *</label>
+            <input type="file" name="file" required
+                   accept=".pdf,.docx,.doc,.hwp,.hwpx"
+                   style="padding:0.5rem;">
+            <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.25rem;">
+                지원 형식: PDF, Word(.docx), HWP | 최대 50MB
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>문서 제목 *</label>
+            <input type="text" name="title" required placeholder="예: 정보보호 정책서">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label>문서 유형 *</label>
+                <select name="doc_type" required>
+                    <option value="정책서">정책서</option>
+                    <option value="지침서">지침서</option>
+                    <option value="절차서">절차서</option>
+                    <option value="계획서">계획서</option>
+                    <option value="보고서">보고서</option>
+                    <option value="회의록">회의록</option>
+                    <option value="승인문서">승인문서</option>
+                    <option value="매뉴얼">매뉴얼</option>
+                    <option value="기타">기타</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>버전</label>
+                <input type="text" name="version" value="1.0" placeholder="1.0">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>설명</label>
+            <textarea name="description" placeholder="문서에 대한 간단한 설명..."></textarea>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>승인 정보</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label>작성자</label>
+                <input type="text" name="author" placeholder="문서 작성자">
+            </div>
+            <div class="form-group">
+                <label>승인자</label>
+                <input type="text" name="approver" placeholder="문서 승인자">
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+            <div class="form-group">
+                <label>승인일</label>
+                <input type="date" name="approval_date">
+            </div>
+            <div class="form-group">
+                <label>시행일</label>
+                <input type="date" name="effective_date">
+            </div>
+            <div class="form-group">
+                <label>만료일</label>
+                <input type="date" name="expiry_date">
+                <div style="font-size:0.75rem;color:var(--text-dim);margin-top:0.25rem;">
+                    만료일 설정 시 자동 알림
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+        <button type="submit" class="btn">업로드</button>
+        <a href="/documents" class="btn btn-outline">취소</a>
+    </div>
+</form>
+
+{% endblock %}

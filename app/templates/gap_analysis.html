@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}갭 분석 — ISMS-P{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+    <h1 style="font-size:1.5rem;">갭 분석 대시보드</h1>
+    <a href="/gap/export" class="btn btn-sm btn-outline">CSV 내보내기</a>
+</div>
+
+<!-- 통계 카드 -->
+<div class="stat-row">
+    <div class="stat-card">
+        <div class="label">전체 항목</div>
+        <div class="value">{{ summary.total }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">완전충족</div>
+        <div class="value green">{{ summary.fulfilled }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">부분충족</div>
+        <div class="value yellow">{{ summary.partial + summary.unverified }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">미충족</div>
+        <div class="value red">{{ summary.gap }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">만료 임박</div>
+        <div class="value" style="color:#f97316;">{{ summary.expiring }}</div>
+    </div>
+</div>
+
+<!-- 전체 진행률 바 -->
+{% set fulfilled_pct = (summary.fulfilled / summary.total * 100) if summary.total else 0 %}
+{% set partial_pct = ((summary.partial + summary.unverified) / summary.total * 100) if summary.total else 0 %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+        <span style="font-size:0.85rem;color:var(--text-dim);">전체 충족률</span>
+        <span style="font-size:0.85rem;font-weight:700;color:var(--green);">{{ fulfilled_pct|round(1) }}%</span>
+    </div>
+    <div style="height:12px;background:var(--border);border-radius:6px;overflow:hidden;display:flex;">
+        <div style="width:{{ fulfilled_pct }}%;background:var(--green);"></div>
+        <div style="width:{{ partial_pct }}%;background:var(--yellow);"></div>
+    </div>
+    <div style="display:flex;gap:1.5rem;margin-top:0.5rem;font-size:0.75rem;color:var(--text-dim);">
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:4px;"></span>충족</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:4px;"></span>부분</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:4px;"></span>미충족</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f97316;margin-right:4px;"></span>만료 임박</span>
+    </div>
+</div>
+
+<!-- 장 필터 -->
+<div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;">
+    <a href="/gap" class="btn btn-sm {% if not chapter_filter %}{% else %}btn-outline{% endif %}">전체</a>
+    <a href="/gap?chapter=1" class="btn btn-sm {% if chapter_filter == '1' %}{% else %}btn-outline{% endif %}">제1장 관리체계</a>
+    <a href="/gap?chapter=2" class="btn btn-sm {% if chapter_filter == '2' %}{% else %}btn-outline{% endif %}">제2장 보호대책</a>
+    <a href="/gap?chapter=3" class="btn btn-sm {% if chapter_filter == '3' %}{% else %}btn-outline{% endif %}">제3장 개인정보</a>
+</div>
+
+<!-- 섹션별 상세 -->
+{% for sec in sections %}
+<div class="card" style="margin-bottom:0.75rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin-bottom:0;">{{ sec.section }} {{ sec.section_title }}</h3>
+        <div style="display:flex;gap:0.5rem;font-size:0.8rem;">
+            {% if sec.fulfilled > 0 %}
+            <span class="badge badge-ok">{{ sec.fulfilled }}</span>
+            {% endif %}
+            {% if sec.partial > 0 %}
+            <span class="badge" style="background:rgba(234,179,8,0.15);color:var(--yellow);">{{ sec.partial }}</span>
+            {% endif %}
+            {% if sec.gap > 0 %}
+            <span class="badge badge-warn">{{ sec.gap }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 섹션 진행률 -->
+    {% set sec_total = sec['items']|length %}
+    {% set sec_pct = (sec.fulfilled / sec_total * 100) if sec_total else 0 %}
+    <div class="progress-bar" style="margin:0.5rem 0;">
+        <div class="fill" style="width:{{ sec_pct }}%;background:var(--green);"></div>
+    </div>
+
+    <!-- 항목 목록 -->
+    <div style="margin-top:0.5rem;">
+        {% for item in sec['items'] %}
+        <div style="display:flex;align-items:center;gap:0.75rem;padding:0.35rem 0;border-bottom:1px solid rgba(42,45,58,0.5);">
+            <!-- 상태 아이콘 -->
+            {% if item.gap_status == 'fulfilled' %}
+                <span style="width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>
+            {% elif item.gap_status == 'partial' %}
+                <span style="width:10px;height:10px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></span>
+            {% elif item.gap_status == 'unverified' %}
+                <span style="width:10px;height:10px;border-radius:50%;background:var(--yellow);flex-shrink:0;opacity:0.5;"></span>
+            {% else %}
+                <span style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;"></span>
+            {% endif %}
+
+            <a href="/item/{{ item.item_code }}" class="row-link" style="font-size:0.85rem;min-width:4rem;">
+                <span class="item-code">{{ item.item_code }}</span>
+            </a>
+            <span style="font-size:0.85rem;flex:1;">{{ item.item_title }}</span>
+
+            <!-- 충족유형 -->
+            <span class="tag" style="font-size:0.65rem;">
+                {% set type_labels = {'document': '문서', 'system': '시스템', 'mixed': '복합'} %}
+                {{ type_labels.get(item.fulfillment_type, item.fulfillment_type) }}
+            </span>
+
+            <!-- 문서 수 -->
+            {% if item.linked_docs > 0 %}
+            <span style="font-size:0.75rem;color:var(--text-dim);">{{ item.linked_docs }}문서</span>
+            {% endif %}
+
+            <!-- 만료 경고 -->
+            {% if item.expiring %}
+                {% if item.expired %}
+                <span style="font-size:0.7rem;color:var(--red);">만료됨</span>
+                {% else %}
+                <span style="font-size:0.7rem;color:#f97316;">만료임박</span>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+
+{% endblock %}

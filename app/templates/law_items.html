@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ law_name }} 관련 항목{% endblock %}
+{% block content %}
+
+<a href="/laws" class="back-link">&larr; 법령 관리</a>
+
+<h1 style="margin: 1rem 0 0.25rem; font-size: 1.4rem;">
+    {{ law_name }}
+</h1>
+<p class="section-title" style="margin-bottom: 1.5rem;">
+    이 법령이 매핑된 ISMS-P 통제항목 {{ items|length }}건
+</p>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table>
+        <thead>
+            <tr>
+                <th>코드</th>
+                <th>항목명</th>
+                <th>분류</th>
+                <th>관련 조항</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>
+                    <a href="/item/{{ item.item_code }}" class="item-code" style="text-decoration: none;">
+                        {{ item.item_code }}
+                    </a>
+                </td>
+                <td>
+                    <a href="/item/{{ item.item_code }}" class="row-link">
+                        {{ item.item_title }}
+                    </a>
+                </td>
+                <td style="font-size: 0.85rem; color: var(--text-dim);">
+                    {{ item.section }} {{ item.section_title }}
+                </td>
+                <td style="font-size: 0.8rem; color: var(--text-dim); max-width: 300px;">
+                    {% set laws = item.related_laws %}
+                    {% if laws %}
+                        {% for law_entry in laws.split('","') if law_name[:6] in law_entry or law_name[-4:] in law_entry %}
+                            <span class="tag">{{ law_entry.replace('[','').replace(']','').replace('"','').strip() }}</span>
+                        {% endfor %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

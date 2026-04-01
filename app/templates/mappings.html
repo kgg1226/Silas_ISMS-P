@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}매핑 관리 — ISMS-P{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+    <h1 style="font-size:1.5rem;">매핑 관리</h1>
+    <a href="/mappings/create" class="btn">+ 매핑 추가</a>
+</div>
+
+<!-- 통계 -->
+<div class="stat-row">
+    <div class="stat-card">
+        <div class="label">전체 매핑</div>
+        <div class="value">{{ total }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">검증됨</div>
+        <div class="value green">{{ verified_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">미검증</div>
+        <div class="value yellow">{{ unverified_count }}</div>
+    </div>
+</div>
+
+<!-- 필터 -->
+<div class="search-bar" style="margin-bottom:1rem;">
+    <form method="get" action="/mappings" style="display:flex;gap:0.5rem;width:100%;">
+        <input type="text" name="item_code" placeholder="항목 코드 (예: 1.1.1)" value="{{ filter_item }}">
+        <select name="verified" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.5rem;border-radius:8px;">
+            <option value="">전체</option>
+            <option value="1" {% if filter_verified == '1' %}selected{% endif %}>검증됨만</option>
+            <option value="0" {% if filter_verified == '0' %}selected{% endif %}>미검증만</option>
+        </select>
+        <button type="submit">필터</button>
+    </form>
+</div>
+
+{% if mappings %}
+<div style="overflow-x:auto;">
+<table>
+    <thead>
+        <tr>
+            <th>항목</th>
+            <th>문서</th>
+            <th>조항</th>
+            <th>충족도</th>
+            <th>신뢰도</th>
+            <th>소스</th>
+            <th>검증</th>
+            <th>액션</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in mappings %}
+        <tr>
+            <td>
+                <a href="/item/{{ m.item_code }}" class="row-link" style="color:var(--accent-light);">{{ m.item_code }}</a>
+                <div style="font-size:0.75rem;color:var(--text-dim);">{{ m.item_title }}</div>
+            </td>
+            <td>
+                <a href="/documents/{{ m.document_id }}" class="row-link" style="color:var(--text);">{{ m.doc_title }}</a>
+                <div style="font-size:0.75rem;color:var(--text-dim);">{{ m.doc_type }} v{{ m.doc_version }}</div>
+            </td>
+            <td style="font-size:0.85rem;color:var(--text-dim);">{{ m.section_number or '전체' }}</td>
+            <td>
+                {% set cov_labels = {'full': '전체', 'partial': '부분', 'reference': '참조'} %}
+                {% set cov_colors = {'full': 'color:var(--green)', 'partial': 'color:var(--yellow)', 'reference': 'color:var(--text-dim)'} %}
+                <span style="{{ cov_colors.get(m.coverage_level, '') }};font-size:0.85rem;cursor:help;"
+                      title="{{ m.notes or '평가 상세 없음' }}">
+                    {{ cov_labels.get(m.coverage_level, m.coverage_level) }}
+                </span>
+            </td>
+            <td style="font-size:0.85rem;color:var(--text-dim);">{{ (m.confidence_score * 100)|round(0)|int }}%</td>
+            <td>
+                <span class="tag" style="font-size:0.7rem;">{{ m.mapping_source }}</span>
+            </td>
+            <td>
+                {% if m.verified == 1 %}
+                    <span class="badge badge-ok">검증됨</span>
+                {% else %}
+                    <span class="badge" style="background:rgba(234,179,8,0.15);color:var(--yellow);">미검증</span>
+                {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+                {% if m.verified != 1 %}
+                <form method="post" action="/mappings/{{ m.id }}/verify" style="display:inline;">
+                    <button type="submit" class="btn btn-sm btn-outline" style="font-size:0.7rem;padding:0.2rem 0.4rem;">승인</button>
+                </form>
+                {% endif %}
+                <form method="post" action="/mappings/{{ m.id }}/reassess" style="display:inline;"
+                      title="체크포인트 기반 충족 수준 재평가">
+                    <button type="submit" class="btn btn-sm btn-outline" style="font-size:0.7rem;padding:0.2rem 0.4rem;">재평가</button>
+                </form>
+                <form method="post" action="/mappings/{{ m.id }}/reject" style="display:inline;"
+                      onsubmit="return confirm('매핑을 삭제하시겠습니까?');">
+                    <button type="submit" class="btn btn-sm" style="font-size:0.7rem;padding:0.2rem 0.4rem;background:var(--red);">삭제</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:3rem;">
+    <p style="color:var(--text-dim);font-size:1.1rem;">매핑이 없습니다</p>
+    <p style="color:var(--text-dim);font-size:0.9rem;margin-top:0.5rem;">
+        문서를 업로드하고 자동 매핑을 실행하거나, 수동으로 매핑을 추가하세요.
+    </p>
+</div>
+{% endif %}
+
+{% endblock %}

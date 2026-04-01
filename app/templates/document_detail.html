@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} — ISMS-P{% endblock %}
+{% block content %}
+
+<a href="/documents" class="back-link">&larr; 문서 목록</a>
+
+<!-- 문서 기본 정보 -->
+<div class="card" style="margin-top:1rem;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+            <h2 style="font-size:1.3rem;margin-bottom:0.25rem;">{{ doc.title }}</h2>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem;">
+                <span class="tag">{{ doc.doc_type }}</span>
+                <span style="color:var(--text-dim);font-size:0.85rem;">v{{ doc.version }}</span>
+                {% set status_colors = {'active': 'badge-ok', 'draft': '', 'expired': 'badge-warn'} %}
+                <span class="badge {{ status_colors.get(doc.status, '') }}"
+                      style="{% if doc.status not in ['active','expired'] %}background:rgba(156,163,175,0.15);color:var(--text-dim);{% endif %}">
+                    {{ doc.status }}
+                </span>
+            </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+            <a href="/mappings/create?document_id={{ doc.id }}" class="btn btn-sm">+ 매핑 추가</a>
+            {% if doc.parse_status == 'pending' or doc.parse_status == 'failed' %}
+            <form method="post" action="/documents/{{ doc.id }}/parse" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-outline">파싱 실행</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if doc.description %}
+    <p style="color:var(--text-dim);font-size:0.9rem;margin-top:0.75rem;">{{ doc.description }}</p>
+    {% endif %}
+
+    <!-- 메타데이터 그리드 -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:1rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+        <div>
+            <div class="label">파일명</div>
+            <div style="font-size:0.85rem;color:var(--text-dim);margin-top:0.25rem;">{{ doc.file_name }}</div>
+        </div>
+        <div>
+            <div class="label">크기</div>
+            <div style="font-size:0.85rem;color:var(--text-dim);margin-top:0.25rem;">
+                {% if doc.file_size %}{{ (doc.file_size / 1024)|round(1) }} KB{% else %}-{% endif %}
+            </div>
+        </div>
+        <div>
+            <div class="label">작성자</div>
+            <div style="font-size:0.85rem;color:var(--text-dim);margin-top:0.25rem;">{{ doc.author or '-' }}</div>
+        </div>
+        <div>
+            <div class="label">승인자</div>
+            <div style="font-size:0.85rem;color:var(--text-dim);margin-top:0.25rem;">{{ doc.approver or '-' }}</div>
+        </div>
+        <div>
+            <div class="label">승인일</div>
+            <div style="font-size:0.85rem;color:var(--text-dim);margin-top:0.25rem;">{{ doc.approval_date or '-' }}</div>
+        </div>
+        <div>
+            <div class="label">시행일</div>
+            <div style="font-size:0.85rem;color:var(--text-dim);margin-top:0.25rem;">{{ doc.effective_date or '-' }}</div>
+        </div>
+        <div>
+            <div class="label">만료일</div>
+            <div style="font-size:0.85rem;margin-top:0.25rem;">
+                {% if doc.expiry_date %}
+                    {% set today = "2026-04-01" %}
+                    {% if doc.expiry_date < today %}
+                        <span style="color:var(--red);">{{ doc.expiry_date }} (만료됨)</span>
+                    {% else %}
+                        <span style="color:var(--text-dim);">{{ doc.expiry_date }}</span>
+                    {% endif %}
+                {% else %}
+                    <span style="color:var(--text-dim);">-</span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <div class="label">파싱 상태</div>
+            <div style="font-size:0.85rem;margin-top:0.25rem;">
+                {% if doc.parse_status == 'completed' %}
+                    <span style="color:var(--green);">완료 ({{ doc.total_sections or 0 }}개 섹션)</span>
+                {% elif doc.parse_status == 'pending' %}
+                    <span style="color:var(--yellow);">대기중</span>
+                {% elif doc.parse_status == 'failed' %}
+                    <span style="color:var(--red);">실패: {{ doc.parse_error or '' }}</span>
+                {% elif doc.parse_status == 'unsupported' %}
+                    <span style="color:var(--text-dim);">미지원 형식</span>
+                {% else %}
+                    <span style="color:var(--text-dim);">{{ doc.parse_status }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 파싱된 섹션 -->
+<div class="card">
+    <h3>문서 구조 ({{ sections|length }}개 섹션)</h3>
+    {% if sections %}
+    <div style="margin-top:0.75rem;">
+        {% for sec in sections %}
+        <div style="padding:0.5rem 0;border-bottom:1px solid var(--border);padding-left:{{ sec.depth * 1.5 }}rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <span class="item-code" style="font-size:0.8rem;">{{ sec.section_number }}</span>
+                {% if sec.section_title %}
+                <span style="font-size:0.9rem;">{{ sec.section_title }}</span>
+                {% endif %}
+                {% if sec.page_start %}
+                <span style="font-size:0.75rem;color:var(--text-dim);">p.{{ sec.page_start }}{% if sec.page_end and sec.page_end != sec.page_start %}-{{ sec.page_end }}{% endif %}</span>
+                {% endif %}
+            </div>
+            {% if sec.content %}
+            <div style="font-size:0.8rem;color:var(--text-dim);margin-top:0.25rem;max-height:3rem;overflow:hidden;">
+                {{ sec.content[:200] }}{% if sec.content|length > 200 %}...{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-dim);font-size:0.9rem;margin-top:0.5rem;">
+        {% if doc.parse_status == 'pending' %}
+            파싱을 실행하면 문서 구조가 여기에 표시됩니다.
+        {% elif doc.parse_status == 'unsupported' %}
+            이 파일 형식은 자동 파싱이 지원되지 않습니다. 수동으로 매핑을 추가할 수 있습니다.
+        {% else %}
+            파싱된 섹션이 없습니다.
+        {% endif %}
+    </p>
+    {% endif %}
+</div>
+
+<!-- 매핑된 항목 -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>매핑된 통제항목 ({{ mappings|length }}건)</h3>
+        <div style="display:flex;gap:0.5rem;">
+            <a href="/mappings/create?document_id={{ doc.id }}" class="btn btn-sm btn-outline">+ 수동 매핑</a>
+            {% if sections %}
+            <form method="post" action="/documents/{{ doc.id }}/auto-map" style="display:inline;">
+                <button type="submit" class="btn btn-sm">자동 매핑</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if mappings %}
+    <table style="margin-top:0.75rem;">
+        <thead>
+            <tr>
+                <th>항목</th>
+                <th>조항</th>
+                <th>충족도</th>
+                <th>신뢰도</th>
+                <th>검증</th>
+                <th>액션</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in mappings %}
+            <tr>
+                <td>
+                    <a href="/item/{{ m.item_code }}" class="row-link" style="color:var(--accent-light);">
+                        {{ m.item_code }}
+                    </a>
+                    <div style="font-size:0.75rem;color:var(--text-dim);">{{ m.item_title }}</div>
+                </td>
+                <td style="font-size:0.85rem;color:var(--text-dim);">
+                    {{ m.section_number or '전체 문서' }}
+                    {% if m.sec_title %}<br><span style="font-size:0.75rem;">{{ m.sec_title }}</span>{% endif %}
+                </td>
+                <td>
+                    {% set cov_colors = {'full': 'badge-ok', 'partial': '', 'reference': ''} %}
+                    {% set cov_labels = {'full': '전체', 'partial': '부분', 'reference': '참조'} %}
+                    <span class="badge {{ cov_colors.get(m.coverage_level, '') }}"
+                          style="{% if m.coverage_level == 'partial' %}background:rgba(234,179,8,0.15);color:var(--yellow);{% elif m.coverage_level == 'reference' %}background:rgba(156,163,175,0.15);color:var(--text-dim);{% endif %}">
+                        {{ cov_labels.get(m.coverage_level, m.coverage_level) }}
+                    </span>
+                </td>
+                <td style="font-size:0.85rem;color:var(--text-dim);">
+                    {{ (m.confidence_score * 100)|round(0)|int }}%
+                </td>
+                <td>
+                    {% if m.verified == 1 %}
+                        <span class="badge badge-ok">검증됨</span>
+                    {% else %}
+                        <span class="badge" style="background:rgba(234,179,8,0.15);color:var(--yellow);">미검증</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if m.verified != 1 %}
+                    <form method="post" action="/mappings/{{ m.id }}/verify" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-outline" style="font-size:0.7rem;padding:0.2rem 0.5rem;">승인</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-dim);font-size:0.9rem;margin-top:0.5rem;">
+        아직 매핑된 통제항목이 없습니다. 수동 또는 자동 매핑을 실행하세요.
+    </p>
+    {% endif %}
+</div>
+
+<!-- 상태 변경 -->
+<div class="card">
+    <h3>문서 상태 관리</h3>
+    <form method="post" action="/documents/{{ doc.id }}/status" style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem;">
+        <select name="new_status" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.5rem;border-radius:8px;font-size:0.85rem;">
+            {% for s in ['draft','active','expired','superseded','archived'] %}
+            <option value="{{ s }}" {% if doc.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-outline">상태 변경</button>
+    </form>
+</div>
+
+{% endblock %}
