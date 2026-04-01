@@ -21,5 +21,19 @@ Thumbs.db
 # Logs
 *.log
 
+# 업로드 파일 (바이너리 문서 — git 제외)
+data/uploads/*
+!data/uploads/.gitkeep
+
 # 증적 데이터 (옵션 - 필요시 주석 해제)
 # database/evidence_*.json
+
+# Sentix security (NEVER commit — treat like PEM keys)
+.sentix/safety.toml
+
+# Sentix runtime files
+tasks/.pre-fix-test-results.json
+tasks/pattern-log.jsonl
+tasks/agent-metrics.jsonl
+tasks/strategies.jsonl
+tasks/governor-state.json

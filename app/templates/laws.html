@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}법령 최신화 관리{% endblock %}
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <h1 style="font-size: 1.5rem;">법령 최신화 관리</h1>
+    <form method="post" action="/laws/sync" style="display:inline;">
+        <button type="submit" class="btn" onclick="this.disabled=true;this.textContent='동기화 중...';">
+            동기화 실행
+        </button>
+    </form>
+</div>
+
+<!-- 통계 카드 -->
+<div class="stat-row">
+    <div class="stat-card">
+        <div class="label">추적 법령</div>
+        <div class="value">{{ summary.total }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">최신 확인</div>
+        <div class="value green">{{ summary.active }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">개정 감지</div>
+        <div class="value yellow">{{ summary.amended }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">미확인</div>
+        <div class="value" style="color: var(--text-dim);">{{ summary.unknown }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">마지막 동기화</div>
+        <div style="font-size:0.9rem; margin-top:0.5rem; color:var(--text-dim);">
+            {{ summary.last_sync or '없음' }}
+        </div>
+    </div>
+</div>
+
+<!-- API 키 안내 -->
+{% if summary.total == 0 or summary.unknown == summary.total %}
+<div class="card" style="border-color: rgba(234,179,8,0.4);">
+    <h3 style="color: var(--yellow);">설정 안내</h3>
+    <p style="font-size: 0.9rem; color: var(--text-dim); margin-bottom: 0.75rem;">
+        법제처 오픈API OC키를 환경변수로 설정한 뒤 동기화를 실행하세요.
+    </p>
+    <div style="background: var(--bg); padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 0.75rem;">
+        <div style="color: var(--text-dim); margin-bottom: 0.3rem;">① OC키 = 로그인 이메일의 @ 앞부분</div>
+        <code>예) user@gmail.com → OC키 = user</code>
+    </div>
+    <div style="background: var(--bg); padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 0.75rem;">
+        <div style="color: var(--text-dim); margin-bottom: 0.3rem;">② 환경변수 설정</div>
+        <code>set LAW_API_KEY=본인OC키</code>
+        <span style="color: var(--text-dim); font-size: 0.8rem; margin-left: 0.5rem;">(Windows)</span>
+        <br>
+        <code>export LAW_API_KEY="본인OC키"</code>
+        <span style="color: var(--text-dim); font-size: 0.8rem; margin-left: 0.5rem;">(Linux/Mac)</span>
+    </div>
+    <p style="font-size: 0.8rem; color: var(--text-dim);">
+        API 신청:
+        <a href="https://open.law.go.kr/LSO/openApi/guideList.do" target="_blank"
+           style="color: var(--accent-light);">open.law.go.kr 오픈API</a> (무료)
+        &nbsp;|&nbsp; 서버 IP 등록 필요 (개인 신청 시 자동 등록)
+    </p>
+</div>
+{% endif %}
+
+<!-- 법령 목록 테이블 -->
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table>
+        <thead>
+            <tr>
+                <th>상태</th>
+                <th>법령명</th>
+                <th>시행일</th>
+                <th>개정일</th>
+                <th>개정유형</th>
+                <th>영향 항목</th>
+                <th>마지막 확인</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for law in summary.laws %}
+            <tr>
+                <td>
+                    {% if law.status == 'active' %}
+                        <span class="badge badge-ok">최신</span>
+                    {% elif law.status == 'amended' %}
+                        <span class="badge" style="background:rgba(234,179,8,0.15);color:var(--yellow);">개정</span>
+                    {% elif law.status == 'deprecated' %}
+                        <span class="badge badge-warn">폐지</span>
+                    {% else %}
+                        <span class="badge" style="background:rgba(156,163,175,0.15);color:var(--text-dim);">미확인</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="/laws/{{ law.law_name | urlencode }}/items"
+                       style="color: var(--text); text-decoration: none;">
+                        <strong>{{ law.law_name_short or law.law_name }}</strong>
+                        {% if law.law_name_short and law.law_name_short != law.law_name %}
+                        <br><span style="font-size: 0.75rem; color: var(--text-dim);">{{ law.law_name }}</span>
+                        {% endif %}
+                    </a>
+                </td>
+                <td style="font-family: monospace; font-size: 0.85rem;">
+                    {{ law.current_version or '-' }}
+                </td>
+                <td style="font-family: monospace; font-size: 0.85rem;">
+                    {{ law.amendment_date or '-' }}
+                </td>
+                <td style="font-size: 0.85rem; color: var(--text-dim);">
+                    {{ law.amendment_type or '-' }}
+                </td>
+                <td style="text-align: center;">
+                    <a href="/laws/{{ law.law_name | urlencode }}/items"
+                       style="color: var(--accent-light); text-decoration: none;">
+                        {{ law.affected_items }}건
+                    </a>
+                </td>
+                <td style="font-size: 0.8rem; color: var(--text-dim);">
+                    {{ law.last_synced[:16] if law.last_synced else '없음' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ISMS-P 인증기준 버전 관리 -->
+<div class="card" style="margin-top: 1.5rem; border-color: rgba(99,102,241,0.3);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="margin-bottom: 0;">ISMS-P 인증기준 버전</h3>
+        <form method="post" action="/laws/isms-check" style="display:inline;">
+            <button type="submit" class="btn btn-sm btn-outline"
+                    onclick="this.disabled=true;this.textContent='확인 중...';">
+                버전 확인
+            </button>
+        </form>
+    </div>
+
+    {% if isms_sync %}
+    <div class="stat-row" style="margin-bottom: 1rem;">
+        <div class="stat-card" style="padding: 1rem;">
+            <div class="label">현재 기준</div>
+            <div style="font-size: 1.2rem; font-weight: 700; margin-top: 0.25rem; color: var(--green);">
+                {{ isms_sync.version.current }}
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">
+                {{ isms_sync.version.guide_name }}
+            </div>
+        </div>
+        <div class="stat-card" style="padding: 1rem;">
+            <div class="label">감지 버전</div>
+            <div style="font-size: 1.2rem; font-weight: 700; margin-top: 0.25rem;
+                 color: {% if isms_sync.version.update_available %}var(--yellow){% else %}var(--green){% endif %};">
+                {{ isms_sync.version.latest_detected or '미확인' }}
+            </div>
+            {% if isms_sync.version.update_available %}
+            <div style="font-size: 0.75rem; color: var(--yellow); margin-top: 0.25rem;">
+                새 버전 감지됨
+            </div>
+            {% endif %}
+        </div>
+        <div class="stat-card" style="padding: 1rem;">
+            <div class="label">마지막 확인</div>
+            <div style="font-size: 0.9rem; margin-top: 0.5rem; color: var(--text-dim);">
+                {{ isms_sync.version.last_checked[:16] if isms_sync.version.last_checked else '없음' }}
+            </div>
+        </div>
+    </div>
+
+    {% if isms_sync.version.update_available %}
+    <div style="background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.3); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+        <strong style="color: var(--yellow);">새 인증기준 안내서 감지</strong>
+        <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.25rem;">
+            KISA에서 새 버전({{ isms_sync.version.latest_detected }})이 게시되었습니다.
+            공식 PDF를 다운로드하여 확인 후 수동 반영이 필요합니다.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- 참조 소스 상태 -->
+    {% if isms_sync.reference_sources %}
+    <div style="margin-top: 0.5rem;">
+        <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.04em;">
+            참조 소스 모니터링
+        </div>
+        {% for ref in isms_sync.reference_sources %}
+        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0; font-size: 0.85rem;">
+            <span class="badge" style="background:rgba(156,163,175,0.15);color:var(--text-dim);">비공식</span>
+            <span style="color: var(--text-dim);">{{ ref.name }}</span>
+            <span style="color: var(--text-dim); font-size: 0.75rem;">
+                마지막 확인: {{ ref.last_checked[:16] if ref.last_checked else '없음' }}
+            </span>
+        </div>
+        {% endfor %}
+        <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.5rem; font-style: italic;">
+            비공식 소스는 변경 감지 알림 전용이며, 데이터 반영은 KISA 공식 PDF 확인 후 수동으로 진행됩니다.
+        </p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <p style="color: var(--text-dim); font-size: 0.9rem;">
+        "버전 확인" 버튼을 클릭하여 KISA 인증기준 최신 버전을 확인하세요.
+    </p>
+    {% endif %}
+</div>
+
+<!-- 스케줄 안내 -->
+<div class="card" style="margin-top: 1rem;">
+    <h3>자동 동기화 스케줄</h3>
+    <ul>
+        <li>매주 월요일 09:00 (KST) 자동 실행</li>
+        <li>법제처 국가법령정보센터 API 연동</li>
+        <li>개정 감지 시 영향받는 통제항목 자동 플래그</li>
+        <li>수동 동기화: 상단 <strong>"동기화 실행"</strong> 버튼</li>
+    </ul>
+</div>
+
+<!-- 동기화 로그 -->
+{% if logs %}
+<div class="card">
+    <h3>최근 동기화 로그</h3>
+    <div style="max-height: 300px; overflow-y: auto;">
+        <table style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th>시각</th>
+                    <th>이벤트</th>
+                    <th>법령</th>
+                    <th>상세</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td style="white-space: nowrap; color: var(--text-dim); font-family: monospace; font-size: 0.8rem;">
+                        {{ log.created_at[:16] }}
+                    </td>
+                    <td>
+                        {% if log.event == 'amendment_detected' %}
+                            <span class="badge" style="background:rgba(234,179,8,0.15);color:var(--yellow);">개정감지</span>
+                        {% elif log.event == 'sync' %}
+                            <span class="badge badge-ok">동기화</span>
+                        {% elif log.event == 'error' %}
+                            <span class="badge badge-warn">오류</span>
+                        {% else %}
+                            <span class="badge" style="background:rgba(99,102,241,0.12);color:var(--accent-light);">{{ log.event }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ log.law_name }}
+                    </td>
+                    <td style="color: var(--text-dim); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ log.detail or '' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
