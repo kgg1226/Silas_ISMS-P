@@ -1,0 +1,32 @@
+# .sentix/providers/claude.toml — Claude API 어댑터
+#
+# Claude Code를 통한 에이전트 실행 설정.
+# Sentix의 기본 Provider.
+
+[provider]
+name = "claude"
+type = "cli"                    # cli (Claude Code) | api (Anthropic API)
+
+[cli]
+command = "claude"              # Claude Code CLI 명령어
+auto_accept = true              # -y 플래그 (프롬프트 자동 수락)
+# model = "claude-sonnet-4-6"   # 기본 모델 (생략 시 Claude Code 기본값)
+# max_tokens = 16384            # 최대 출력 토큰
+
+[api]
+# API 직접 호출 시 설정 (type = "api"일 때만 사용)
+# base_url = "https://api.anthropic.com"
+# api_key_env = "ANTHROPIC_API_KEY"  # 환경변수명
+# model = "claude-sonnet-4-6"
+
+[limits]
+max_parallel_agents = 4         # dev-swarm 최대 동시 실행
+timeout_seconds = 600           # 에이전트 실행 타임아웃
+max_retries = 3                 # API 호출 재시도
+
+[safety]
+# 안전어(Safety Word) 시스템 — 모든 LLM provider에 동일 적용
+# .sentix/safety.toml에 SHA-256 해시 저장 (평문 저장 안 함, PEM 키 수준 보안)
+# 위험 요청 감지 시 안전어 검증 후에만 실행 허용
+enforce = true                  # false로 설정 시 안전어 검증 비활성화
+system_prompt_inject = true     # LLM 호출 시 안전어 지침을 system prompt에 자동 주입

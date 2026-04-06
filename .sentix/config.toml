@@ -1,0 +1,23 @@
+[framework]
+version = "2.0.0"
+
+[layers.core]
+enabled = true
+
+[layers.learning]
+enabled = true
+
+[layers.pattern_engine]
+enabled = true
+min_confidence = 0.70
+preemptive_threshold = 0.90
+
+[layers.visual]
+enabled = false
+
+[layers.evolution]
+enabled = false
+min_cycles_for_evolution = 50
+
+[provider]
+default = "claude"
