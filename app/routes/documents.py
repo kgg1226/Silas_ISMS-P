@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Form, UploadFile, File, Query
+from fastapi import APIRouter, Request, Form, UploadFile, File, Query, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -19,6 +19,12 @@ from app.services.document_service import (
     get_document_sections,
     get_document_mappings,
     get_document_versions,
+)
+from app.validators import (
+    ValidationError,
+    validate_doc_type,
+    validate_doc_status,
+    validate_file_upload,
 )
 
 router = APIRouter()
@@ -74,6 +80,16 @@ async def document_upload(
     """문서 업로드 처리."""
     file_data = await file.read()
 
+    # 입력 검증 (TICKET-003)
+    try:
+        validate_doc_type(doc_type)
+        validate_file_upload(file.filename or "", len(file_data))
+    except ValidationError as ve:
+        return templates.TemplateResponse("document_upload.html", {
+            "request": request,
+            "error": ve.message,
+        })
+
     result = upload_document(
         file_data=file_data,
         file_name=file.filename or "unknown",
@@ -102,7 +118,7 @@ async def document_detail(request: Request, doc_id: int):
     """문서 상세 페이지."""
     doc = get_document(doc_id)
     if not doc:
-        return HTMLResponse("<h1>문서를 찾을 수 없습니다</h1>", status_code=404)
+        raise HTTPException(status_code=404, detail=f"문서 #{doc_id}를 찾을 수 없습니다")
 
     sections = get_document_sections(doc_id)
     mappings = get_document_mappings(doc_id)
@@ -162,5 +178,9 @@ async def document_change_status(
     new_status: str = Form(...),
 ):
     """문서 상태 변경."""
+    try:
+        validate_doc_status(new_status)
+    except ValidationError:
+        return RedirectResponse(f"/documents/{doc_id}", status_code=303)
     update_document_status(doc_id, new_status)
     return RedirectResponse(f"/documents/{doc_id}", status_code=303)

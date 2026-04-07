@@ -2,7 +2,47 @@
 {% block title %}ISMS-P 문서 관리 — 대시보드{% endblock %}
 {% block content %}
 
+{% if overview %}
+<!-- 통합 현황판 (TICKET-007) -->
+<h2 style="font-size: 1.1rem; color: var(--text-dim); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">전체 현황</h2>
+<div class="stat-row">
+    <div class="stat-card">
+        <div class="label">전체 인증기준</div>
+        <div class="value">{{ overview.total_items }}</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">ISMS-P 항목</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">커버리지</div>
+        <div class="value {% if overview.coverage_rate >= 80 %}green{% elif overview.coverage_rate >= 50 %}yellow{% else %}red{% endif %}">{{ "%.1f"|format(overview.coverage_rate) }}%</div>
+        <div class="progress-bar">
+            <div class="fill" style="width: {{ overview.coverage_rate }}%; background: {% if overview.coverage_rate >= 80 %}var(--green){% elif overview.coverage_rate >= 50 %}var(--yellow){% else %}var(--red){% endif %};"></div>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">증적 {{ overview.items_with_evidence }} / 매핑 {{ overview.items_with_mapping }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">문서</div>
+        <div class="value">{{ overview.documents_total }}</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">
+            <a href="/documents" style="color: var(--accent-light); text-decoration: none;">
+                활성 {{ overview.documents_active }}건
+            </a>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="label">법령 추적</div>
+        <div class="value {% if overview.law_amended > 0 %}yellow{% else %}green{% endif %}">{{ overview.law_total }}</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">
+            <a href="/laws" style="color: var(--accent-light); text-decoration: none;">
+                최신 {{ overview.law_active }}{% if overview.law_amended %} · 개정 {{ overview.law_amended }}{% endif %}
+            </a>
+        </div>
+    </div>
+</div>
+<hr style="border: none; border-top: 1px solid var(--border); margin: 1.5rem 0;">
+{% endif %}
+
 <!-- 통계 카드 -->
+<h2 style="font-size: 1.1rem; color: var(--text-dim); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">문서 관련 항목</h2>
 <div class="stat-row">
     <div class="stat-card">
         <div class="label">문서 관련 항목</div>

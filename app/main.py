@@ -15,10 +15,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Request, Form, Query
+from fastapi import FastAPI, Request, Form, Query, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger("isms-web")
 
@@ -107,6 +109,71 @@ app.include_router(documents_router)
 app.include_router(mappings_router)
 app.include_router(gap_router)
 app.include_router(auditor_router)
+
+
+# ---------------------------------------------------------------------------
+# 전역 예외 핸들러 (TICKET-004)
+# ---------------------------------------------------------------------------
+_ERROR_TITLES = {
+    400: "잘못된 요청",
+    403: "접근 권한 없음",
+    404: "페이지를 찾을 수 없습니다",
+    405: "허용되지 않은 메서드",
+    422: "입력값 검증 실패",
+    500: "서버 오류",
+    503: "일시적으로 서비스를 이용할 수 없습니다",
+}
+
+
+def _render_error(
+    request: Request,
+    status_code: int,
+    message: str,
+    detail: str = "",
+) -> HTMLResponse:
+    title = _ERROR_TITLES.get(status_code, "오류")
+    return templates.TemplateResponse(
+        "error.html",
+        {
+            "request": request,
+            "status_code": status_code,
+            "title": title,
+            "message": message,
+            "detail": detail,
+        },
+        status_code=status_code,
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    message = exc.detail if isinstance(exc.detail, str) else "요청을 처리할 수 없습니다."
+    return _render_error(request, exc.status_code, message)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = "; ".join(
+        f"{'.'.join(str(x) for x in e.get('loc', []))}: {e.get('msg', '')}"
+        for e in exc.errors()
+    )
+    return _render_error(
+        request,
+        422,
+        "요청 입력값을 확인하세요.",
+        detail=errors,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(f"Unhandled error on {request.url.path}")
+    return _render_error(
+        request,
+        500,
+        "예상치 못한 오류가 발생했습니다. 잠시 후 다시 시도하세요.",
+        detail=str(exc),
+    )
 
 # ---------------------------------------------------------------------------
 # 문서 관련 항목 필터 키워드
@@ -224,6 +291,9 @@ async def dashboard(request: Request, search: str = Query(default="")):
             "doc_examples": doc_examples[:5],
         })
 
+    # 통합 현황판 집계 (TICKET-007)
+    overview = _compute_dashboard_overview(conn)
+
     conn.close()
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
@@ -232,7 +302,77 @@ async def dashboard(request: Request, search: str = Query(default="")):
         "with_evidence": with_evidence,
         "rate": rate,
         "search": search,
+        "overview": overview,
     })
+
+
+def _compute_dashboard_overview(conn: sqlite3.Connection) -> dict:
+    """전체 프로젝트 현황 요약 (TICKET-007).
+
+    - 전체 101개 항목 대비 증적/매핑 현황
+    - 법령 동기화 상태
+    - 갭 분석 핵심 지표
+    """
+    overview = {
+        "total_items": 0,
+        "items_with_evidence": 0,
+        "items_with_mapping": 0,
+        "coverage_rate": 0.0,
+        "law_total": 0,
+        "law_active": 0,
+        "law_amended": 0,
+        "law_unknown": 0,
+        "documents_total": 0,
+        "documents_active": 0,
+    }
+
+    try:
+        overview["total_items"] = conn.execute(
+            "SELECT COUNT(*) FROM isms_requirements"
+        ).fetchone()[0]
+
+        overview["items_with_evidence"] = conn.execute(
+            "SELECT COUNT(DISTINCT item_code) FROM evidences"
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        pass
+
+    # 매핑 기반 커버리지 (document_item_mappings 테이블)
+    try:
+        overview["items_with_mapping"] = conn.execute(
+            "SELECT COUNT(DISTINCT item_code) FROM document_item_mappings"
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        overview["items_with_mapping"] = 0
+
+    if overview["total_items"]:
+        covered = max(overview["items_with_evidence"], overview["items_with_mapping"])
+        overview["coverage_rate"] = covered / overview["total_items"] * 100
+
+    # 법령 동기화 현황
+    try:
+        for row in conn.execute(
+            "SELECT status, COUNT(*) as cnt FROM law_versions GROUP BY status"
+        ).fetchall():
+            overview["law_total"] += row["cnt"]
+            key = f"law_{row['status']}"
+            if key in overview:
+                overview[key] = row["cnt"]
+    except sqlite3.OperationalError:
+        pass
+
+    # 문서 현황
+    try:
+        overview["documents_total"] = conn.execute(
+            "SELECT COUNT(*) FROM documents"
+        ).fetchone()[0]
+        overview["documents_active"] = conn.execute(
+            "SELECT COUNT(*) FROM documents WHERE status = 'active'"
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        pass
+
+    return overview
 
 
 @app.get("/item/{item_code}", response_class=HTMLResponse)
@@ -244,7 +384,7 @@ async def item_detail(request: Request, item_code: str):
     ).fetchone()
     if not row:
         conn.close()
-        return HTMLResponse("<h1>항목을 찾을 수 없습니다</h1>", status_code=404)
+        raise HTTPException(status_code=404, detail=f"항목 {item_code}을(를) 찾을 수 없습니다")
 
     evidences = conn.execute(
         "SELECT * FROM evidences WHERE item_code = ? ORDER BY created_at DESC",

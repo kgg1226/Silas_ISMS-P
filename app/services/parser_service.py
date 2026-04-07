@@ -18,6 +18,43 @@ DEFAULT_DB = Path(__file__).resolve().parent.parent.parent / "data" / "isms_p.db
 DB_PATH = Path(os.getenv("ISMS_DB_PATH", os.getenv("DB_PATH", str(DEFAULT_DB))))
 UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
 
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".doc", ".hwp", ".hwpx"}
+
+
+def get_supported_extensions() -> set[str]:
+    """지원 확장자 목록 반환 (TICKET-006)."""
+    return set(SUPPORTED_EXTENSIONS)
+
+
+def is_parser_available(ext: str) -> tuple[bool, str]:
+    """특정 확장자의 파서가 실제 동작 가능한지 확인.
+
+    Returns:
+        (사용 가능 여부, 메시지)
+    """
+    ext = ext.lower()
+    if ext == ".pdf":
+        try:
+            import pdfplumber  # noqa: F401
+            return True, ""
+        except ImportError:
+            return False, "pdfplumber 미설치: pip install pdfplumber"
+    if ext in (".docx", ".doc"):
+        try:
+            import docx  # noqa: F401
+            return True, ""
+        except ImportError:
+            return False, "python-docx 미설치: pip install python-docx"
+    if ext == ".hwp":
+        try:
+            import olefile  # noqa: F401
+            return True, ""
+        except ImportError:
+            return False, "olefile 미설치: pip install olefile"
+    if ext == ".hwpx":
+        return True, ""  # zipfile은 표준 라이브러리
+    return False, f"지원하지 않는 확장자: {ext}"
+
 
 def _get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
@@ -55,6 +92,18 @@ def parse_document_by_id(doc_id: int) -> dict:
         conn.commit()
         conn.close()
         return {"success": False, "sections_count": 0, "error": "파일을 찾을 수 없습니다."}
+
+    # 확장자 기반 파서 가용성 사전 확인 (TICKET-006)
+    ext = file_path.suffix.lower()
+    available, avail_msg = is_parser_available(ext)
+    if not available:
+        conn.execute(
+            "UPDATE documents SET parse_status = 'unsupported', parse_error = ? WHERE id = ?",
+            (avail_msg, doc_id),
+        )
+        conn.commit()
+        conn.close()
+        return {"success": False, "sections_count": 0, "error": avail_msg}
 
     # 파싱 상태 업데이트
     conn.execute(
