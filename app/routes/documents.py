@@ -32,6 +32,9 @@ router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+from app.template_helpers import setup_i18n  # noqa: E402
+setup_i18n(app=None, templates=templates)
+
 
 @router.get("/documents", response_class=HTMLResponse)
 async def document_list(

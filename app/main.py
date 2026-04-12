@@ -33,6 +33,10 @@ DB_PATH = Path(os.getenv("ISMS_DB_PATH", os.getenv("DB_PATH", str(DEFAULT_DB))))
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+# i18n: register t() global for all Jinja2 templates
+from app.template_helpers import setup_i18n  # noqa: E402
+setup_i18n(app=None, templates=templates)  # app arg reserved for future middleware
+
 # ---------------------------------------------------------------------------
 # Scheduler: 법령 자동 최신화 (주 1회)
 # ---------------------------------------------------------------------------
@@ -105,10 +109,12 @@ from app.routes.documents import router as documents_router
 from app.routes.mappings import router as mappings_router
 from app.routes.gap_analysis import router as gap_router
 from app.routes.auditor import router as auditor_router
+from app.routes.mcp_status import router as mcp_status_router, MCP_TOOLS, MCP_SERVER_INFO
 app.include_router(documents_router)
 app.include_router(mappings_router)
 app.include_router(gap_router)
 app.include_router(auditor_router)
+app.include_router(mcp_status_router)
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +236,11 @@ def parse_json(raw: Optional[str]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, search: str = Query(default="")):
+async def dashboard(
+    request: Request,
+    search: str = Query(default=""),
+    lang: str = Query(default="ko", description="UI locale (ko/en/ja)"),
+):
     """메인 대시보드 — 문서 관련 항목 목록 + 통계."""
     conn = get_conn()
 
@@ -303,6 +313,9 @@ async def dashboard(request: Request, search: str = Query(default="")):
         "rate": rate,
         "search": search,
         "overview": overview,
+        "mcp_tools": MCP_TOOLS,
+        "mcp_server": MCP_SERVER_INFO,
+        "locale": lang,  # i18n proof-of-concept: pass to templates for t(key, locale)
     })
 
 

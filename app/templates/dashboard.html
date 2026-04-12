@@ -110,4 +110,23 @@
     </tbody>
 </table>
 
+<!-- MCP 서버 도구 카드 -->
+{% if mcp_tools %}
+<hr style="border: none; border-top: 1px solid var(--border); margin: 2rem 0;">
+<div class="card">
+    <h2 style="font-size: 1.1rem; color: var(--text-dim); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">MCP 서버 도구</h2>
+    <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">
+        {{ mcp_server.name }} v{{ mcp_server.version }} &mdash; {{ mcp_tools | length }}개 도구 등록됨
+    </div>
+    <ul style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.5rem;">
+        {% for tool in mcp_tools %}
+        <li style="padding: 0.5rem 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 4px;">
+            <span style="font-family: monospace; font-size: 0.85rem; color: var(--accent-light);">{{ tool.name }}</span>
+            <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.2rem;">{{ tool.description }}</div>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 {% endblock %}

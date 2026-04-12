@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}MCP 서버 대시보드{% endblock %}
+{% block content %}
+
+<h1 style="font-size: 1.3rem; margin-bottom: 1rem;">MCP 서버 대시보드</h1>
+
+<div class="stat-row">
+    <div class="stat-card">
+        <div class="label">서버</div>
+        <div class="value" style="font-size: 1rem;">{{ server.name }}</div>
+        <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">v{{ server.version }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">등록 도구</div>
+        <div class="value green">{{ tool_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">진입점</div>
+        <div class="value" style="font-size: 0.85rem; word-break: break-all;">{{ server.entry_point }}</div>
+    </div>
+</div>
+
+<h2 style="font-size: 1.1rem; color: var(--text-dim); margin: 1.5rem 0 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">도구 목록</h2>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>도구명</th>
+            <th>설명</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tool in tools %}
+        <tr>
+            <td style="color: var(--text-dim);">{{ loop.index }}</td>
+            <td><code style="color: var(--accent-light);">{{ tool.name }}</code></td>
+            <td>{{ tool.description }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-dim);">
+    JSON API: <a href="/mcp/status" style="color: var(--accent-light);">/mcp/status</a>
+</div>
+
+{% endblock %}

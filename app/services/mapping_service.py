@@ -187,13 +187,75 @@ def _tokenize(text: str) -> set[str]:
     return set(w for w in words if len(w) >= 2)
 
 
+def _compute_relevance_score(section_text: str, item: dict) -> float:
+    """
+    섹션 텍스트와 ISMS-P 항목 간의 관련도 점수를 계산한다.
+
+    가중치 체계:
+        key_checks             → 3x  (주요 확인사항, 가장 직접적인 매핑 근거)
+        certification_criteria → 2x  (인증기준)
+        evidence_examples      → 1x  (증적 예시)
+
+    텍스트 길이 편향 보정:
+        섹션 토큰 수로 정규화하여 긴 섹션이 무조건 높은 점수를
+        받는 bias를 제거한다.  섹션 토큰이 20개 미만이면 최대 20% 감점.
+
+    Args:
+        section_text: 섹션 제목 + 본문을 합친 문자열
+        item: key_checks, certification_criteria, evidence_examples
+              필드를 갖는 dict (원본 텍스트 또는 None)
+
+    Returns:
+        0.0 ~ 1.0 사이의 신뢰도 점수
+    """
+    sec_tokens = _tokenize(section_text)
+    sec_len = max(len(sec_tokens), 1)
+
+    kc_text = " ".join(_parse_json(item.get("key_checks") or ""))
+    ee_text = " ".join(_parse_json(item.get("evidence_examples") or ""))
+    crit_text = item.get("certification_criteria") or ""
+
+    kc_tokens = _tokenize(kc_text)
+    crit_tokens = _tokenize(crit_text)
+    ee_tokens = _tokenize(ee_text)
+
+    weighted_hits = 0.0
+    total_weight = 0.0
+
+    for token_set, weight in [
+        (kc_tokens, 3.0),
+        (crit_tokens, 2.0),
+        (ee_tokens, 1.0),
+    ]:
+        if token_set:
+            overlap = len(sec_tokens & token_set)
+            # 겹친 토큰 수를 항목 토큰 집합 크기로 나눠 recall 계산
+            recall = overlap / max(len(token_set), 1)
+            weighted_hits += recall * weight
+            total_weight += weight
+
+    if total_weight == 0.0:
+        return 0.0
+
+    # 가중 recall (0~1 범위)
+    raw_score = weighted_hits / total_weight
+
+    # 텍스트 길이 편향 보정: 섹션 토큰 20개 미만이면 최대 20% 감점
+    length_factor = min(sec_len / 20.0, 1.0)
+
+    score = raw_score * (0.8 + 0.2 * length_factor)
+    return round(min(score, 1.0), 6)
+
+
 def auto_map_document(document_id: int) -> dict:
     """
     문서의 파싱된 섹션을 키워드 매칭으로 항목에 자동 매핑.
     매핑 후보를 찾으면 fulfillment_assessor로 체크포인트 기반 충족 수준을 산정한다.
 
-    Phase 1: 키워드 매칭으로 후보 필터링 (score ≥ 0.15)
-    Phase 2: fulfillment_assessor로 충족 수준 정밀 평가
+    Phase 1: _compute_relevance_score()로 후보 필터링 (score ≥ 0.30)
+             key_checks=3x, certification_criteria=2x, evidence_examples=1x 가중치 적용,
+             텍스트 길이 편향 보정 포함.
+    Phase 2: fulfillment_assessor로 체크포인트 기반 충족 수준 정밀 평가
 
     Returns:
         {"suggestions": int, "skipped": int, "assessment": {"full": int, "partial": int, "reference": int}}
@@ -223,22 +285,15 @@ def auto_map_document(document_id: int) -> dict:
            FROM isms_requirements ORDER BY item_code"""
     ).fetchall()
 
-    # 항목별 토큰 캐시
+    # 항목별 캐시 — 원본 텍스트 필드 보존 (_compute_relevance_score가 사용)
     item_tokens: list[dict] = []
     for item in items:
-        title_tokens = _tokenize(item["item_title"] or "")
-        criteria_tokens = _tokenize(item["certification_criteria"] or "")
-        kc_text = " ".join(_parse_json(item["key_checks"]))
-        kc_tokens = _tokenize(kc_text)
-        ee_text = " ".join(_parse_json(item["evidence_examples"]))
-        ee_tokens = _tokenize(ee_text)
-
         item_tokens.append({
             "item_code": item["item_code"],
-            "title": title_tokens,
-            "criteria": criteria_tokens,
-            "kc": kc_tokens,
-            "ee": ee_tokens,
+            # _compute_relevance_score()가 기대하는 원본 텍스트 필드
+            "key_checks": item["key_checks"],
+            "certification_criteria": item["certification_criteria"],
+            "evidence_examples": item["evidence_examples"],
         })
 
     suggestions = 0
@@ -247,37 +302,16 @@ def auto_map_document(document_id: int) -> dict:
 
     for sec in sections:
         sec_text = f"{sec['section_title'] or ''} {sec['content'] or ''}"
-        sec_tokens = _tokenize(sec_text)
 
-        if len(sec_tokens) < 3:
+        if len(_tokenize(sec_text)) < 3:
             continue  # 너무 짧은 섹션 스킵
 
         for it in item_tokens:
-            # Phase 1: 키워드 매칭으로 후보 필터링
-            score = 0.0
-            total_weight = 0.0
+            # Phase 1: 점수 기반 후보 필터링 (_compute_relevance_score 사용)
+            relevance = _compute_relevance_score(sec_text, it)
 
-            for token_set, weight in [
-                (it["criteria"], 3.0),
-                (it["kc"], 2.0),
-                (it["ee"], 1.5),
-                (it["title"], 1.0),
-            ]:
-                if token_set:
-                    overlap = len(sec_tokens & token_set)
-                    if overlap > 0:
-                        ratio = overlap / max(len(token_set), 1)
-                        score += ratio * weight
-                    total_weight += weight
-
-            # 정규화
-            if total_weight > 0:
-                normalized = score / total_weight
-            else:
-                normalized = 0.0
-
-            # 임계값
-            if normalized >= 0.15:
+            # 임계값: 0.30 미만은 노이즈 매핑으로 간주하여 제외
+            if relevance >= 0.30:
                 # 중복 체크
                 existing = conn.execute(
                     """SELECT id FROM document_item_mappings
@@ -298,21 +332,21 @@ def auto_map_document(document_id: int) -> dict:
                 )
 
                 coverage = assessment.coverage_level
-                confidence = assessment.confidence_score
                 notes = assessment.summary_text()
                 assessment_counts[coverage] = assessment_counts.get(coverage, 0) + 1
 
+                # confidence_score는 _compute_relevance_score()가 계산한 값을 사용
                 cursor = conn.execute(
                     """INSERT INTO document_item_mappings
                        (document_id, section_id, item_code, fulfillment_type,
                         coverage_level, confidence_score, mapping_source, verified, notes)
                        VALUES (?, ?, ?, 'document', ?, ?, 'auto_keyword', 0, ?)""",
-                    (document_id, sec["id"], it["item_code"], coverage, round(confidence, 3), notes),
+                    (document_id, sec["id"], it["item_code"], coverage, round(relevance, 3), notes),
                 )
                 _log_mapping(
                     conn, "auto_suggest", cursor.lastrowid,
                     document_id, it["item_code"],
-                    f"자동 매핑+평가 ({coverage}, score={confidence:.3f}, section={sec['section_number']})",
+                    f"자동 매핑+평가 ({coverage}, score={relevance:.3f}, section={sec['section_number']})",
                 )
                 suggestions += 1
 

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "tickets": [
+    {
+      "id": "TICKET-008",
+      "title": "의존성 버전 상한 명시 (starlette)",
+      "status": "in_progress",
+      "priority": "P2",
+      "scope": ["requirements.txt"],
+      "cycle": "cycle-2026-04-12-649"
+    },
+    {
+      "id": "TICKET-009",
+      "title": "실제 파일 업로드 통합 테스트",
+      "status": "in_progress",
+      "priority": "P2",
+      "scope": ["__tests__/test_document_upload.py"],
+      "cycle": "cycle-2026-04-12-649"
+    },
+    {
+      "id": "TICKET-011",
+      "title": "MCP 서버 통합 대시보드",
+      "status": "in_progress",
+      "priority": "P3",
+      "scope": ["app/routes/mcp_status.py", "app/templates/mcp_dashboard.html"],
+      "cycle": "cycle-2026-04-12-649"
+    },
+    {
+      "id": "TICKET-010",
+      "title": "매핑 자동화 정밀도 개선 (임베딩)",
+      "status": "open",
+      "priority": "P3",
+      "scope": ["app/services/mapping_service.py", "app/services/fulfillment_assessor.py"],
+      "cycle": null,
+      "note": "HIGH complexity — defer to future cycle"
+    },
+    {
+      "id": "TICKET-012",
+      "title": "다국어/번역 준비",
+      "status": "open",
+      "priority": "P3",
+      "scope": ["app/templates/**"],
+      "cycle": null,
+      "note": "MEDIUM complexity — defer to future cycle"
+    }
+  ]
+}

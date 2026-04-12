@@ -8,11 +8,11 @@
 </head>
 <body>
     <nav class="nav">
-        <a href="/" class="nav-brand">ISMS-P <span>문서 관리</span></a>
-        <a href="/documents" class="nav-link">문서 관리</a>
-        <a href="/mappings" class="nav-link">매핑 관리</a>
-        <a href="/gap" class="nav-link">갭 분석</a>
-        <a href="/laws" class="nav-link">법령 관리</a>
+        <a href="/" class="nav-brand">{{ t("nav.brand", locale|default("ko")) }}</a>
+        <a href="/documents" class="nav-link">{{ t("nav.documents", locale|default("ko")) }}</a>
+        <a href="/mappings" class="nav-link">{{ t("nav.mappings", locale|default("ko")) }}</a>
+        <a href="/gap" class="nav-link">{{ t("nav.gap", locale|default("ko")) }}</a>
+        <a href="/laws" class="nav-link">{{ t("nav.laws", locale|default("ko")) }}</a>
     </nav>
     <div class="container">
         {% block flash %}{% endblock %}
