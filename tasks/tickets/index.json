@@ -3,45 +3,43 @@
   "tickets": [
     {
       "id": "TICKET-008",
-      "title": "의존성 버전 상한 명시 (starlette)",
-      "status": "in_progress",
+      "title": "의존성 버전 상한 명시 (starlette + testing)",
+      "status": "done",
       "priority": "P2",
       "scope": ["requirements.txt"],
-      "cycle": "cycle-2026-04-12-649"
+      "cycle": "cycle-2026-04-12-234"
     },
     {
       "id": "TICKET-009",
       "title": "실제 파일 업로드 통합 테스트",
-      "status": "in_progress",
+      "status": "done",
       "priority": "P2",
       "scope": ["__tests__/test_document_upload.py"],
-      "cycle": "cycle-2026-04-12-649"
+      "cycle": "cycle-2026-04-12-234"
+    },
+    {
+      "id": "TICKET-010",
+      "title": "매핑 자동화 정밀도 개선 (가중치 기반 relevance score)",
+      "status": "done",
+      "priority": "P3",
+      "scope": ["app/services/mapping_service.py", "__tests__/test_mapping_accuracy.py"],
+      "cycle": "cycle-2026-04-12-234"
     },
     {
       "id": "TICKET-011",
       "title": "MCP 서버 통합 대시보드",
-      "status": "in_progress",
+      "status": "done",
       "priority": "P3",
-      "scope": ["app/routes/mcp_status.py", "app/templates/mcp_dashboard.html"],
-      "cycle": "cycle-2026-04-12-649"
-    },
-    {
-      "id": "TICKET-010",
-      "title": "매핑 자동화 정밀도 개선 (임베딩)",
-      "status": "open",
-      "priority": "P3",
-      "scope": ["app/services/mapping_service.py", "app/services/fulfillment_assessor.py"],
-      "cycle": null,
-      "note": "HIGH complexity — defer to future cycle"
+      "scope": ["app/routes/mcp_status.py", "app/templates/dashboard.html", "app/main.py"],
+      "cycle": "cycle-2026-04-12-234"
     },
     {
       "id": "TICKET-012",
       "title": "다국어/번역 준비",
-      "status": "open",
+      "status": "done",
       "priority": "P3",
-      "scope": ["app/templates/**"],
-      "cycle": null,
-      "note": "MEDIUM complexity — defer to future cycle"
+      "scope": ["app/i18n.py", "app/template_helpers.py", "app/templates/base.html", "__tests__/test_i18n.py"],
+      "cycle": "cycle-2026-04-12-234"
     }
   ]
 }

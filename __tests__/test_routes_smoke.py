@@ -59,3 +59,20 @@ def test_laws_isms_check_post_safe(test_client):
 def test_nonexistent_item_returns_404(test_client):
     resp = test_client.get("/item/ZZ.99.99")
     assert resp.status_code == 404
+
+
+def test_mcp_status_returns_json(test_client):
+    """GET /mcp/status 는 도구 목록 JSON을 반환해야 한다."""
+    resp = test_client.get("/mcp/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "tools" in data
+    assert data["tool_count"] == len(data["tools"])
+
+
+def test_mcp_dashboard_loads(test_client):
+    """GET /mcp/dashboard 는 HTML 페이지를 반환하고 도구 목록이 포함되어야 한다."""
+    resp = test_client.get("/mcp/dashboard")
+    assert resp.status_code == 200
+    assert "MCP" in resp.text
+    assert "search_requirements" in resp.text

@@ -4,10 +4,15 @@ MCP 서버 상태 라우트 — 등록된 도구 목록 및 기본 정보 반환
 
 from __future__ import annotations
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
 
 router = APIRouter()
+
+_BASE_DIR = Path(__file__).resolve().parent.parent
+_templates = Jinja2Templates(directory=str(_BASE_DIR / "templates"))
 
 # MCP 서버에 등록된 도구 목록 (mcp_server/isms_mcp_server.py 기준)
 MCP_TOOLS = [
@@ -73,6 +78,17 @@ MCP_SERVER_INFO = {
 async def mcp_status():
     """MCP 서버 도구 목록 및 기본 정보를 반환합니다."""
     return JSONResponse({
+        "server": MCP_SERVER_INFO,
+        "tool_count": len(MCP_TOOLS),
+        "tools": MCP_TOOLS,
+    })
+
+
+@router.get("/mcp/dashboard", response_class=HTMLResponse)
+async def mcp_dashboard(request: Request):
+    """MCP 서버 대시보드 HTML 페이지."""
+    return _templates.TemplateResponse("mcp_dashboard.html", {
+        "request": request,
         "server": MCP_SERVER_INFO,
         "tool_count": len(MCP_TOOLS),
         "tools": MCP_TOOLS,
