@@ -147,6 +147,7 @@ Governor가 전체 상태를 갖고 있기 때문에 가능한 것:
   "schema_version": 1,
   "cycle_id": "cycle-2025-03-24-001",
   "request": "인증에 세션 만료 추가해줘",
+  "mode": "standard",
   "status": "in_progress",
   "current_phase": "security",
   "plan": [
@@ -170,11 +171,12 @@ Governor가 전체 상태를 갖고 있기 때문에 가능한 것:
 
 **필드 정의:**
 - `schema_version` — 상태 파일 스키마 버전 (마이그레이션 판단용)
-- `status` — `in_progress` | `completed` | `failed`
+- `mode` — `standard` | `hotfix` | `debug` (파이프라인 실행 모드)
+- `status` — `in_progress` | `completed` | `failed` | `gate-warning`
 - `current_phase` — 현재 실행 중인 에이전트 이름
 - `plan[].status` — `pending` | `running` | `done` | `failed`
 - `plan[].result_ref` — 결과 파일 경로 또는 `inline`
-- Governor가 죽어도 이 파일에서 복원한다 → 중단된 phase부터 재개
+- Governor가 죽어도 이 파일에서 복원한다 → `sentix resume`로 중단된 phase부터 재개
 
 ### Pre-fix Snapshot 정의
 
@@ -232,8 +234,8 @@ tasks/.pre-fix-test-results.json — npm run test --json 결과
 ```
 입력: 티켓 + 선행 분석 결과 (있으면) + CLAUDE.md
 출력: 변경 파일 + diff 요약 + 테스트 결과 + pre-fix snapshot
-쓰기: app/**, lib/**, components/**, __tests__/**
-금지: prisma/schema.prisma, docker/**, .github/**, FRAMEWORK.md, CLAUDE.md
+쓰기: app/**, lib/**, components/**, __tests__/**, scripts/**
+금지: prisma/schema.prisma, .github/**, FRAMEWORK.md, CLAUDE.md, Dockerfile, docker-compose.yml
 완료조건: npm run test && npm run lint && npm run build
 ```
 
@@ -265,8 +267,8 @@ Governor 동작:
 ```
 입력: 이슈 내용 + 원본 티켓 + Governor 교차 판단 (있으면) + pre-fix snapshot
 출력: 수정 파일 + diff + 테스트 결과 + LESSON_LEARNED (필수)
-쓰기: app/**, lib/**, components/**, __tests__/**
-금지: prisma/schema.prisma, docker/**, .github/**, FRAMEWORK.md, CLAUDE.md
+쓰기: app/**, lib/**, components/**, __tests__/**, scripts/**
+금지: prisma/schema.prisma, .github/**, FRAMEWORK.md, CLAUDE.md, Dockerfile, docker-compose.yml
 파괴 방지 규칙: 전체 적용 + 이슈 무관 파일 수정 금지 강화
 ```
 
@@ -292,6 +294,8 @@ Governor 동작:
 입력: 배포 지시 + env-profiles/active.toml
 출력: [STATUS] PASSED / FAILED / MANUAL_PENDING + [ISSUE] (있으면)
 실체: scripts/deploy.sh (Governor가 직접 실행)
+쓰기: scripts/deploy.sh, Dockerfile, docker-compose.yml, entrypoint.sh
+금지: 소스코드 수정 일체 (app/**, lib/**, components/**)
 ```
 
 ### security
@@ -473,6 +477,15 @@ tasks/
 - dev-fix 실행마다 LESSON_LEARNED가 lessons.md에 기록
 - 동일 패턴 3회 반복 → roadmap에 구조적 개선 항목으로 자동 승격
 - 다음 planner 실행 시 lessons.md를 컨텍스트로 자동 주입
+
+LESSON_LEARNED 기록 형식:
+```
+### [YYYY-MM-DD] PATTERN_NAME
+- **심각도**: critical | warning | suggestion
+- **설명**: 무엇이 왜 실패했는가
+- **수정**: 어떻게 수정했는가
+- **예방**: 같은 실수를 반복하지 않으려면
+```
 
 **행동 학습 (patterns.md):**
 - 모든 요청/이벤트가 pattern-log.jsonl에 자동 기록

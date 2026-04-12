@@ -1,23 +1,56 @@
+# .sentix/config.toml — Sentix Framework Layer 활성화 설정
+#
+# 각 Layer를 프로젝트 필요에 맞게 활성화/비활성화한다.
+# 비활성화된 Layer의 파일은 생성되지 않고, 에이전트가 참조하지 않는다.
+
+[runtime]
+mode = "framework"              # framework: Claude Code 의존 (무료) / engine: 직접 API 호출 (유료)
+
 [framework]
 version = "2.0.0"
 
+# ── Layer 1: Governor + Agents (Core) ────────────────────
 [layers.core]
-enabled = true
+enabled = true                  # 항상 true (비활성화 불가)
+governor_state = "tasks/governor-state.json"
+tickets_dir = "tasks/tickets"
 
+# ── Layer 2: Learning Pipeline ───────────────────────────
 [layers.learning]
 enabled = true
+lessons_file = "tasks/lessons.md"
+pattern_log = "tasks/pattern-log.jsonl"
 
+# ── Layer 3: Pattern Engine ──────────────────────────────
 [layers.pattern_engine]
 enabled = true
-min_confidence = 0.70
-preemptive_threshold = 0.90
+patterns_file = "tasks/patterns.md"
+predictions_file = "tasks/predictions.md"
+min_confidence = 0.70           # 이 값 미만은 로깅만
+preemptive_threshold = 0.90     # 이 값 이상은 선제 실행
+decay_days = 30                 # 미발생 시 자동 제거 (일)
 
+# ── Layer 4: Visual Perception ───────────────────────────
 [layers.visual]
-enabled = false
+enabled = false                 # 대시보드/UI 생성 프로젝트에서 활성화
+preferences_file = "tasks/visual-preferences.md"
 
+# ── Layer 5: Self-Evolution ──────────────────────────────
 [layers.evolution]
-enabled = false
-min_cycles_for_evolution = 50
+enabled = false                 # 충분한 사이클 축적 후 활성화 권장
+metrics_file = "tasks/agent-metrics.jsonl"
+strategies_file = "tasks/strategies.jsonl"
+min_cycles_for_evolution = 50   # 진화 분석 시작 최소 사이클 수
+ab_test_cycles = 10             # 프롬프트 A/B 테스트 사이클 수
+auto_rollback_threshold = 0.10  # 성능 하락 10% 시 자동 롤백
 
+# ── Version Management ──────────────────────────────────
+[version]
+auto_bump = true                # 파이프라인 완료 후 자동 버전 범프
+auto_tag = true                 # 자동 git tag 생성
+auto_changelog = true           # 자동 CHANGELOG.md 업데이트
+
+# ── Provider ─────────────────────────────────────────────
 [provider]
-default = "claude"
+default = "claude"              # claude | openai | ollama
+config_dir = ".sentix/providers"
